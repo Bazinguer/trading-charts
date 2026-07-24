@@ -4,6 +4,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   ArrowUpRight,
+  CalendarDays,
   ChevronsUpDown,
   Clock,
   ListChecks,
@@ -118,7 +119,14 @@ const COLUMNAS: Columna[] = [
   { id: "maximo", etiqueta: "Máximo", numerica: true },
   { id: "minimo", etiqueta: "Mínimo", numerica: true },
   { id: "var_pct", etiqueta: "% var.", numerica: true },
-  { id: "resultados", etiqueta: "Próx. resultados", numerica: true, ocultaInicial: true },
+  {
+    id: "resultados",
+    etiqueta: "Próx. resultados",
+    abreviatura: "Próx. results",
+    icono: CalendarDays,
+    numerica: true,
+    ocultaInicial: true,
+  },
 ]
 
 type Visibilidad = Record<ColId, boolean>
