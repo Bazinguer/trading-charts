@@ -72,11 +72,12 @@ type ColId =
   | "nombre"
   | "simbolo"
   | "ultimo"
-  | "var_pct"
+  | "ampliado"
+  | "ampliado_pct"
   | "apertura"
   | "maximo"
   | "minimo"
-  | "ampliado"
+  | "var_pct"
   | "resultados"
 
 type Columna = {
@@ -87,16 +88,18 @@ type Columna = {
   ocultaInicial?: boolean
 }
 
+// Orden fijo estilo Investing: precio y ampliado primero, % var. al final.
 const COLUMNAS: Columna[] = [
   { id: "nombre", etiqueta: "Nombre", fija: true },
   { id: "simbolo", etiqueta: "Símbolo", fija: true },
   { id: "ultimo", etiqueta: "Último", numerica: true },
-  { id: "var_pct", etiqueta: "% var.", numerica: true },
+  { id: "ampliado", etiqueta: "Horario ampliado", numerica: true, ocultaInicial: true },
+  { id: "ampliado_pct", etiqueta: "Horario ampliado (%)", numerica: true, ocultaInicial: true },
   { id: "apertura", etiqueta: "Apertura", numerica: true },
   { id: "maximo", etiqueta: "Máximo", numerica: true },
   { id: "minimo", etiqueta: "Mínimo", numerica: true },
-  { id: "ampliado", etiqueta: "Horario ampliado", numerica: true, ocultaInicial: true },
-  { id: "resultados", etiqueta: "Resultados", numerica: true, ocultaInicial: true },
+  { id: "var_pct", etiqueta: "% var.", numerica: true },
+  { id: "resultados", etiqueta: "Próx. resultados", numerica: true, ocultaInicial: true },
 ]
 
 type Visibilidad = Record<ColId, boolean>
@@ -320,21 +323,10 @@ function Celda({ col, simbolo, r }: { col: Columna; simbolo: string; r?: Resumen
           {r?.var_pct != null ? porcentaje(r.var_pct) : "—"}
         </TableCell>
       )
-    case "ampliado":
+    case "ampliado_pct":
       return (
-        <TableCell className="text-right tabular-nums">
-          {r?.ampliado != null ? (
-            <>
-              {precio(r.ampliado)}
-              {r.ampliado_pct != null && (
-                <span className={cn("ml-1.5 text-xs", claseSigno(r.ampliado_pct))}>
-                  {porcentaje(r.ampliado_pct)}
-                </span>
-              )}
-            </>
-          ) : (
-            "—"
-          )}
+        <TableCell className={cn("text-right tabular-nums", claseSigno(r?.ampliado_pct))}>
+          {r?.ampliado_pct != null ? porcentaje(r.ampliado_pct) : "—"}
         </TableCell>
       )
     case "resultados":
