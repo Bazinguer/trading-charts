@@ -7,6 +7,7 @@ timestamp = lunes de apertura), así solo hay UNA fuente de verdad en disco.
 
 import pandas as pd
 
+from api import cotizaciones
 from api.datos import ruta_parquet
 
 INTERVALOS = ("1d", "1w")
@@ -32,34 +33,50 @@ def cargar(simbolo: str, intervalo: str) -> list[dict]:
 
 
 def resumen(simbolos: list[str]) -> list[dict]:
-    """Última vela diaria de cada símbolo: cierre, variación % y OHLC del día.
+    """Resumen de cada símbolo: cotización en vivo si la hay, si no la última vela.
 
-    Un símbolo sin parquet no es un error: sale con valores null (la lista de
-    seguimiento puede contener símbolos aún no descargados).
+    Base: última vela diaria del parquet (cierre, variación % entre las dos
+    últimas velas, OHLC y fecha). Si hay cotización en vivo, pisa esos campos
+    y añade ampliado/ampliado_pct (pre/post-market) y resultados (fecha de
+    próximos resultados); var_pct sin porcentaje de la fuente (Binance) se
+    calcula contra el cierre de la última vela en disco. `fecha` es siempre
+    la de la última vela guardada. Un símbolo sin parquet no es un error:
+    sale con null en lo que no haya (la lista de seguimiento puede contener
+    símbolos aún no descargados).
     """
     campos = ("ultimo", "var_pct", "apertura", "maximo", "minimo", "fecha")
+    extras = ("ampliado", "ampliado_pct", "resultados")
+    vivos = cotizaciones.obtener(simbolos)
     resultado = []
     for simbolo in simbolos:
+        fila = {"simbolo": simbolo, **dict.fromkeys(campos + extras)}
         destino = ruta_parquet(simbolo)
-        if not destino.exists():
-            resultado.append({"simbolo": simbolo, **dict.fromkeys(campos)})
-            continue
-        df = pd.read_parquet(destino)
-        ultima = df.iloc[-1]
-        ultimo = float(ultima["close"])
-        anterior = float(df["close"].iloc[-2]) if len(df) > 1 else None
-        var_pct = round((ultimo / anterior - 1) * 100, 2) if anterior else None
-        resultado.append(
-            {
-                "simbolo": simbolo,
-                "ultimo": ultimo,
-                "var_pct": var_pct,
-                "apertura": float(ultima["open"]),
-                "maximo": float(ultima["high"]),
-                "minimo": float(ultima["low"]),
-                "fecha": ultima["open_time"].date().isoformat(),
-            }
-        )
+        cierre_previo = None
+        if destino.exists():
+            df = pd.read_parquet(destino)
+            ultima = df.iloc[-1]
+            ultimo = float(ultima["close"])
+            anterior = float(df["close"].iloc[-2]) if len(df) > 1 else None
+            # Referencia para la variación live: el último cierre ANTERIOR a
+            # hoy (si la última vela es la del día en curso, live vs ella ≈ 0).
+            cerradas = df.loc[df["open_time"] < pd.Timestamp.now(tz="UTC").normalize(), "close"]
+            cierre_previo = float(cerradas.iloc[-1]) if len(cerradas) else None
+            fila.update(
+                {
+                    "ultimo": ultimo,
+                    "var_pct": round((ultimo / anterior - 1) * 100, 2) if anterior else None,
+                    "apertura": float(ultima["open"]),
+                    "maximo": float(ultima["high"]),
+                    "minimo": float(ultima["low"]),
+                    "fecha": ultima["open_time"].date().isoformat(),
+                }
+            )
+        vivo = vivos.get(simbolo)
+        if vivo:
+            fila.update({clave: valor for clave, valor in vivo.items() if valor is not None})
+            if vivo.get("var_pct") is None and vivo.get("ultimo") and cierre_previo:
+                fila["var_pct"] = round((vivo["ultimo"] / cierre_previo - 1) * 100, 2)
+        resultado.append(fila)
     return resultado
 
 

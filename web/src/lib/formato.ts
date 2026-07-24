@@ -14,6 +14,13 @@ export function porcentaje(valor: number): string {
   return `${valor > 0 ? "+" : ""}${texto} %`
 }
 
+/** Fecha "YYYY-MM-DD" → dd/mm/aaaa (sin pasar por Date: no hay zona horaria). */
+export function fechaCorta(iso: string): string {
+  const [a, m, d] = iso.split("-")
+  if (!a || !m || !d) return "—"
+  return `${d}/${m}/${a}`
+}
+
 /** Fecha y hora compactas: dd/mm/aaaa hh:mm. */
 export function fechaHora(iso: string): string {
   const fecha = new Date(iso)

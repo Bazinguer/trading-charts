@@ -66,6 +66,9 @@ export interface ResumenSimbolo {
   maximo: number | null
   minimo: number | null
   fecha: string | null
+  ampliado: number | null
+  ampliado_pct: number | null
+  resultados: string | null
 }
 
 export type TipoActivo = "cripto" | "accion" | "etf" | "indice" | "fondo"

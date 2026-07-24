@@ -53,11 +53,20 @@ def registrar(simbolo: str, nombre: str, tipo: str, fuente: str) -> None:
 
 def nombres(lista: list[str]) -> dict[str, str]:
     """Nombre registrado de cada símbolo; los no registrados no aparecen."""
+    return _columna("nombre", lista)
+
+
+def fuentes(lista: list[str]) -> dict[str, str]:
+    """Fuente (binance|yahoo) de cada símbolo; los no registrados no aparecen."""
+    return _columna("fuente", lista)
+
+
+def _columna(columna: str, lista: list[str]) -> dict[str, str]:
     if not lista:
         return {}
     marcas = ",".join("?" * len(lista))
     with _conexion() as conexion:
         filas = conexion.execute(
-            f"SELECT simbolo, nombre FROM simbolos WHERE simbolo IN ({marcas})", lista
+            f"SELECT simbolo, {columna} FROM simbolos WHERE simbolo IN ({marcas})", lista
         ).fetchall()
     return dict(filas)

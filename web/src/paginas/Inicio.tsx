@@ -63,7 +63,7 @@ import {
   type ResumenSimbolo,
   type TipoActivo,
 } from "@/lib/api"
-import { claseSigno, porcentaje, precio } from "@/lib/formato"
+import { claseSigno, fechaCorta, porcentaje, precio } from "@/lib/formato"
 import { cn } from "@/lib/utils"
 
 /* ── Columnas de la tabla ─────────────────────────────────────────────── */
@@ -76,9 +76,16 @@ type ColId =
   | "apertura"
   | "maximo"
   | "minimo"
+  | "ampliado"
   | "resultados"
 
-type Columna = { id: ColId; etiqueta: string; numerica?: boolean; fija?: boolean }
+type Columna = {
+  id: ColId
+  etiqueta: string
+  numerica?: boolean
+  fija?: boolean
+  ocultaInicial?: boolean
+}
 
 const COLUMNAS: Columna[] = [
   { id: "nombre", etiqueta: "Nombre", fija: true },
@@ -88,22 +95,29 @@ const COLUMNAS: Columna[] = [
   { id: "apertura", etiqueta: "Apertura", numerica: true },
   { id: "maximo", etiqueta: "Máximo", numerica: true },
   { id: "minimo", etiqueta: "Mínimo", numerica: true },
-  { id: "resultados", etiqueta: "Resultados", numerica: true },
+  { id: "ampliado", etiqueta: "Horario ampliado", numerica: true, ocultaInicial: true },
+  { id: "resultados", etiqueta: "Resultados", numerica: true, ocultaInicial: true },
 ]
 
 type Visibilidad = Record<ColId, boolean>
 
-// "Resultados" oculta por defecto; el resto visibles.
 const VISIBILIDAD_INICIAL = Object.fromEntries(
-  COLUMNAS.map((c) => [c.id, c.id !== "resultados"]),
+  COLUMNAS.map((c) => [c.id, !c.ocultaInicial]),
 ) as Visibilidad
 
-function cargarVisibilidad(): Visibilidad {
+// Visibilidad POR LISTA: { [listaId]: { [columnaId]: boolean } }. Se guardan
+// solo las diferencias respecto a los defaults; al leer se completan. La clave
+// antigua "tc-columnas" (visibilidad global) queda ignorada a propósito.
+const CLAVE_COLUMNAS = "tc-columnas-v2"
+
+type VisibilidadPorLista = Record<string, Partial<Visibilidad>>
+
+function cargarVisibilidadPorLista(): VisibilidadPorLista {
   try {
-    const guardado = JSON.parse(localStorage.getItem("tc-columnas") ?? "{}") as Partial<Visibilidad>
-    return { ...VISIBILIDAD_INICIAL, ...guardado }
+    const crudo: unknown = JSON.parse(localStorage.getItem(CLAVE_COLUMNAS) ?? "{}")
+    return typeof crudo === "object" && crudo !== null ? (crudo as VisibilidadPorLista) : {}
   } catch {
-    return VISIBILIDAD_INICIAL
+    return {}
   }
 }
 
@@ -306,8 +320,29 @@ function Celda({ col, simbolo, r }: { col: Columna; simbolo: string; r?: Resumen
           {r?.var_pct != null ? porcentaje(r.var_pct) : "—"}
         </TableCell>
       )
+    case "ampliado":
+      return (
+        <TableCell className="text-right tabular-nums">
+          {r?.ampliado != null ? (
+            <>
+              {precio(r.ampliado)}
+              {r.ampliado_pct != null && (
+                <span className={cn("ml-1.5 text-xs", claseSigno(r.ampliado_pct))}>
+                  {porcentaje(r.ampliado_pct)}
+                </span>
+              )}
+            </>
+          ) : (
+            "—"
+          )}
+        </TableCell>
+      )
     case "resultados":
-      return <TableCell className="text-right text-muted-foreground">—</TableCell>
+      return (
+        <TableCell className="text-right tabular-nums">
+          {r?.resultados ? fechaCorta(r.resultados) : "—"}
+        </TableCell>
+      )
     default: {
       const valor = r?.[col.id]
       return (
@@ -346,9 +381,9 @@ function TablaLista({
       o?.col !== col ? { col, dir: "asc" } : o.dir === "asc" ? { col, dir: "desc" } : null,
     )
 
+  // "resultados" es "YYYY-MM-DD": como texto ordena bien cronológicamente.
   const valorCelda = (simbolo: string, col: ColId): string | number | null => {
     if (col === "simbolo") return simbolo
-    if (col === "resultados") return null
     const r = resumen[simbolo]
     return r?.[col] ?? null
   }
@@ -507,11 +542,12 @@ export function Inicio() {
   const [nombreNuevo, setNombreNuevo] = useState("")
   const [renombrar, setRenombrar] = useState<Lista | null>(null)
   const [nombreEditado, setNombreEditado] = useState("")
-  const [visibles, setVisibles] = useState<Visibilidad>(cargarVisibilidad)
+  const [visiblesPorLista, setVisiblesPorLista] =
+    useState<VisibilidadPorLista>(cargarVisibilidadPorLista)
 
   useEffect(() => {
-    localStorage.setItem("tc-columnas", JSON.stringify(visibles))
-  }, [visibles])
+    localStorage.setItem(CLAVE_COLUMNAS, JSON.stringify(visiblesPorLista))
+  }, [visiblesPorLista])
 
   const cargar = useCallback(async (): Promise<Lista[] | undefined> => {
     try {
@@ -642,9 +678,12 @@ export function Inicio() {
               <TablaLista
                 lista={l}
                 resumen={resumen}
-                visibles={visibles}
+                visibles={{ ...VISIBILIDAD_INICIAL, ...visiblesPorLista[String(l.id)] }}
                 alCambiarColumna={(col, visible) =>
-                  setVisibles((v) => ({ ...v, [col]: visible }))
+                  setVisiblesPorLista((m) => ({
+                    ...m,
+                    [String(l.id)]: { ...m[String(l.id)], [col]: visible },
+                  }))
                 }
                 alGuardarSimbolos={(simbolos) =>
                   ejecutar(() => apiPut(`/api/listas/${l.id}/simbolos`, { simbolos }))
