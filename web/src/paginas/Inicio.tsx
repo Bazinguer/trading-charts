@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, type ComponentType } from "react"
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   ArrowUpRight,
   ChevronsUpDown,
+  Clock,
   ListChecks,
   LoaderCircle,
   Pencil,
@@ -83,6 +84,10 @@ type ColId =
 type Columna = {
   id: ColId
   etiqueta: string
+  // Cabecera compacta opcional: icono + abreviatura (la etiqueta completa
+  // queda en el tooltip y en el menú "Columnas").
+  abreviatura?: string
+  icono?: ComponentType<{ className?: string }>
   numerica?: boolean
   fija?: boolean
   ocultaInicial?: boolean
@@ -93,8 +98,22 @@ const COLUMNAS: Columna[] = [
   { id: "nombre", etiqueta: "Nombre", fija: true },
   { id: "simbolo", etiqueta: "Símbolo", fija: true },
   { id: "ultimo", etiqueta: "Último", numerica: true },
-  { id: "ampliado", etiqueta: "Horario ampliado", numerica: true, ocultaInicial: true },
-  { id: "ampliado_pct", etiqueta: "Horario ampliado (%)", numerica: true, ocultaInicial: true },
+  {
+    id: "ampliado",
+    etiqueta: "Horario ampliado",
+    abreviatura: "Amp.",
+    icono: Clock,
+    numerica: true,
+    ocultaInicial: true,
+  },
+  {
+    id: "ampliado_pct",
+    etiqueta: "Horario ampliado (%)",
+    abreviatura: "Amp. %",
+    icono: Clock,
+    numerica: true,
+    ocultaInicial: true,
+  },
   { id: "apertura", etiqueta: "Apertura", numerica: true },
   { id: "maximo", etiqueta: "Máximo", numerica: true },
   { id: "minimo", etiqueta: "Mínimo", numerica: true },
@@ -300,12 +319,14 @@ function CabeceraOrdenable({
       type="button"
       onClick={() => alOrdenar(columna.id)}
       aria-label={`Ordenar por ${columna.etiqueta}`}
+      title={columna.abreviatura ? columna.etiqueta : undefined}
       className={cn(
         "inline-flex items-center gap-1 rounded-sm font-medium transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
         dir ? "text-foreground" : "text-muted-foreground",
       )}
     >
-      {columna.etiqueta}
+      {columna.icono && <columna.icono className="h-3.5 w-3.5" aria-hidden="true" />}
+      {columna.abreviatura ?? columna.etiqueta}
       <Icono className="h-3.5 w-3.5" aria-hidden="true" />
     </button>
   )
