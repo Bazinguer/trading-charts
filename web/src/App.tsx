@@ -1,33 +1,40 @@
-import { useState } from 'react'
-import { Grafico } from './Grafico'
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
-const SIMBOLOS = ['BTCUSDT', 'ETHUSDT']
+import { Shell } from "@/components/shell/Shell"
+import { ProveedorSesion, useSesion } from "@/contextos/sesion"
+import { ProveedorTema } from "@/contextos/tema"
+import { Grafico } from "@/paginas/Grafico"
+import { Inicio } from "@/paginas/Inicio"
+import { Login } from "@/paginas/Login"
+
+function Guardia({ children }: { children: React.ReactNode }) {
+  const { cargando, autenticado } = useSesion()
+  if (cargando) return null
+  if (!autenticado) return <Navigate to="/login" replace />
+  return children
+}
 
 export default function App() {
-  const [simbolo, setSimbolo] = useState('BTCUSDT')
-  const [intervalo, setIntervalo] = useState<'1d' | '1w'>('1d')
-
   return (
-    <main>
-      <header>
-        <h1>charts</h1>
-        <select value={simbolo} onChange={(e) => setSimbolo(e.target.value)}>
-          {SIMBOLOS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <div className="intervalos">
-          <button className={intervalo === '1d' ? 'activo' : ''} onClick={() => setIntervalo('1d')}>
-            1D
-          </button>
-          <button className={intervalo === '1w' ? 'activo' : ''} onClick={() => setIntervalo('1w')}>
-            1S
-          </button>
-        </div>
-      </header>
-      <Grafico simbolo={simbolo} intervalo={intervalo} />
-    </main>
+    <BrowserRouter>
+      <ProveedorTema>
+        <ProveedorSesion>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              element={
+                <Guardia>
+                  <Shell />
+                </Guardia>
+              }
+            >
+              <Route index element={<Inicio />} />
+              <Route path="/grafico/:simbolo" element={<Grafico />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Routes>
+        </ProveedorSesion>
+      </ProveedorTema>
+    </BrowserRouter>
   )
 }

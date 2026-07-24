@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react"
 import { dispose, init } from "klinecharts"
 import type { Chart } from "klinecharts"
 
+import { api, apiPut, ErrorApi } from "@/lib/api"
+
 // Overlays incorporados de KLineChart que exponemos en la barra de dibujo.
 const HERRAMIENTAS = [
   { name: "segment", etiqueta: "Línea" },
@@ -21,7 +23,7 @@ type DibujoGuardado = {
   extendData?: unknown
 }
 
-export function Grafico({ simbolo, intervalo }: { simbolo: string; intervalo: "1d" | "1w" }) {
+export function GraficoVelas({ simbolo, intervalo }: { simbolo: string; intervalo: "1d" | "1w" }) {
   const contenedorRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<Chart | null>(null)
   const [estado, setEstado] = useState("")
@@ -32,12 +34,13 @@ export function Grafico({ simbolo, intervalo }: { simbolo: string; intervalo: "1
     let cancelado = false
 
     const arrancar = async () => {
-      const respuesta = await fetch(`/api/velas/${simbolo}?intervalo=${intervalo}`)
-      if (!respuesta.ok) {
-        setEstado(`Error cargando velas: ${(await respuesta.json()).detail}`)
+      let velas: Velas
+      try {
+        velas = await api<Velas>(`/api/velas/${simbolo}?intervalo=${intervalo}`)
+      } catch (e) {
+        setEstado(`Error cargando velas: ${e instanceof ErrorApi ? e.message : "sin conexión"}`)
         return
       }
-      const velas: Velas = await respuesta.json()
       if (cancelado) return
 
       const chart = init(contenedor)
@@ -55,8 +58,7 @@ export function Grafico({ simbolo, intervalo }: { simbolo: string; intervalo: "1
         },
       })
 
-      const dibujos = await fetch(`/api/dibujos/${simbolo}`)
-      const { overlays }: { overlays: DibujoGuardado[] } = await dibujos.json()
+      const { overlays } = await api<{ overlays: DibujoGuardado[] }>(`/api/dibujos/${simbolo}`)
       if (!cancelado && overlays.length > 0) {
         chart.createOverlay(overlays)
         setEstado(`${overlays.length} dibujos restaurados`)
@@ -90,12 +92,12 @@ export function Grafico({ simbolo, intervalo }: { simbolo: string; intervalo: "1
       points: overlay.points.map((p) => ({ timestamp: p.timestamp, value: p.value })),
       extendData: overlay.extendData,
     }))
-    const respuesta = await fetch(`/api/dibujos/${simbolo}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ overlays }),
-    })
-    setEstado(respuesta.ok ? `${overlays.length} dibujos guardados` : "Error al guardar")
+    try {
+      await apiPut(`/api/dibujos/${simbolo}`, { overlays })
+      setEstado(`${overlays.length} dibujos guardados`)
+    } catch {
+      setEstado("Error al guardar")
+    }
   }
 
   const limpiar = () => {

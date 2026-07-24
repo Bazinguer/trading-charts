@@ -22,6 +22,8 @@ pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
+# Config de Claude Code (hooks y scripts personales), no es código del proyecto
+extend-exclude = [".claude"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

@@ -31,6 +31,33 @@ def cargar(simbolo: str, intervalo: str) -> list[dict]:
     return df.to_dict(orient="records")
 
 
+def resumen(simbolos: list[str]) -> list[dict]:
+    """Último close, variación % contra el close anterior y fecha del último dato.
+
+    Un símbolo sin parquet no es un error: sale con valores null (la lista de
+    seguimiento puede contener símbolos aún no descargados).
+    """
+    resultado = []
+    for simbolo in simbolos:
+        destino = ruta_parquet(simbolo)
+        if not destino.exists():
+            resultado.append({"simbolo": simbolo, "ultimo": None, "var_pct": None, "fecha": None})
+            continue
+        df = pd.read_parquet(destino, columns=["open_time", "close"])
+        ultimo = float(df["close"].iloc[-1])
+        anterior = float(df["close"].iloc[-2]) if len(df) > 1 else None
+        var_pct = round((ultimo / anterior - 1) * 100, 2) if anterior else None
+        resultado.append(
+            {
+                "simbolo": simbolo,
+                "ultimo": ultimo,
+                "var_pct": var_pct,
+                "fecha": df["open_time"].iloc[-1].date().isoformat(),
+            }
+        )
+    return resultado
+
+
 def _a_semanal(df: pd.DataFrame) -> pd.DataFrame:
     agregado = (
         df.set_index("open_time")

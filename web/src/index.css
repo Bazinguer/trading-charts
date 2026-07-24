@@ -1,61 +1,126 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Tokens del tema (heredados del DS de trading-bot).
+ * El tema OSCURO es el por defecto (:root); .light lo sobreescribe.
+ */
+:root {
+  --radius: 0.75rem;
+
+  --background: #0f1623;
+  --foreground: #f1f5f9;
+  --card: #162032;
+  --card-foreground: #f1f5f9;
+  --popover: #162032;
+  --popover-foreground: #f1f5f9;
+  --primary: #38bdf8;
+  --primary-foreground: #0f1623;
+  --secondary: #1c283c;
+  --secondary-foreground: #f1f5f9;
+  --muted: #1c283c;
+  --muted-foreground: #94a3b8;
+  --accent: rgba(56, 189, 248, 0.1);
+  --accent-foreground: #f1f5f9;
+  --destructive: #ef4444;
+  --destructive-foreground: #f1f5f9;
+  --border: #2a3548;
+  --input: #2a3548;
+  --ring: #38bdf8;
+
+  /* Semánticos financieros */
+  --success: #22c55e;
+  --faint: #64748b; /* text muted (tercer nivel) */
 }
 
-body {
-  background: #0b0e14;
-  color: #d6d9e0;
-  font-family: system-ui, sans-serif;
+.light {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #0ea5e9;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: rgba(14, 165, 233, 0.08);
+  --accent-foreground: #0f172a;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #0ea5e9;
+
+  --success: #16a34a;
+  --faint: #94a3b8;
 }
 
-main {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  padding: 12px;
-  gap: 10px;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-faint: var(--faint);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    color-scheme: dark;
+  }
+  html.light {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-size: 14px;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Scrollbars finas de marca */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--muted-foreground) 50%, transparent);
+  }
 }
 
-h1 {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-select,
-button {
-  background: #161b26;
-  color: #d6d9e0;
-  border: 1px solid #2a3040;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-button:hover {
-  background: #1e2433;
-}
-
-button.activo,
-button.primario {
-  background: #2456c8;
-  border-color: #2456c8;
-  color: #fff;
-}
-
-.intervalos {
-  display: flex;
-  gap: 4px;
-}
-
+/* ── Gráfico de velas (GraficoVelas, estilos del prototipo) ───────────── */
 .grafico {
   display: flex;
   flex-direction: column;
@@ -70,16 +135,36 @@ button.primario {
   gap: 6px;
 }
 
+.barra button {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 4px);
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.barra button:hover {
+  background: var(--accent);
+}
+
+.barra button.primario {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
 .separador {
   width: 1px;
   height: 20px;
-  background: #2a3040;
+  background: var(--border);
   margin: 0 6px;
 }
 
 .estado {
   font-size: 12px;
-  color: #8a91a3;
+  color: var(--muted-foreground);
   margin-left: 8px;
 }
 

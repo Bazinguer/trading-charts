@@ -1,4 +1,4 @@
-# charts
+# trading-charts
 
 Gráficos financieros con análisis técnico PERSISTENTE (futuro charts.bazinguer.es).
 Sustituye a VisualChart/GoCharting: espacios de activos y dibujos que quedan
@@ -18,13 +18,28 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
   semanal se agrega desde el diario (una sola fuente de verdad en disco).
   Acciones e índices (API de Yahoo, patrón de stocks_lab) en fase posterior.
 - BD de dibujos: SQLite `data/dibujos.db`. En producción irá en volumen con
-  backup — perder dibujos es perder el propósito del proyecto.
+  backup — perder dibujos es perder el propósito del proyecto. Las listas de
+  seguimiento viven en la misma BD (tablas `listas` y `lista_simbolos`).
+- Listas de seguimiento: agrupan símbolos, nada más. Los dibujos se anclan al
+  símbolo, así que un símbolo en varias listas comparte su AT y borrar una
+  lista nunca borra dibujos. Sin sección "favoritos": una lista cumple ese rol.
+- Auth: un solo usuario, cookie httpOnly firmada (HMAC). Credenciales en `.env`
+  (`CHARTS_USUARIO`, `CHARTS_PASSWORD`, `CHARTS_SECRET`). Todo `/api/*` la
+  exige salvo login/logout/sesion.
+- Tema OSCURO por defecto (`:root`), claro como override (`.light`). Sistema de
+  diseño JomBotix adaptado en `docs/design/` (BRAND.md y UX_PATTERNS.md).
 
 ## Estructura
 
-- `api/` — FastAPI (puerto 8010 en dev): `/api/velas/{simbolo}` y
-  `/api/dibujos/{simbolo}` (GET/PUT). `datos.py` descarga los parquet.
-- `web/` — React + Vite + TS con KLineChart. Proxy `/api` → :8010 en dev.
+- `api/` — FastAPI (puerto 8010 en dev): `velas.py` (`/api/velas/{simbolo}`,
+  `/api/resumen`), `dibujos.py` (`/api/dibujos/{simbolo}` GET/PUT),
+  `listas.py` (`/api/listas` CRUD + PUT `/{id}/simbolos` reemplazo completo),
+  `sesion.py` (login/logout/sesion). `datos.py` descarga los parquet.
+- `web/` — React 19 + Vite + TS + Tailwind v4 + shadcn (new-york) + KLineChart.
+  Proxy `/api` → :8010 en dev. `src/`: `paginas/` (Login, Inicio, Grafico),
+  `contextos/` (tema, sesion), `components/shell/` (header + sidebar flotante),
+  `components/ui/` (shadcn), `components/GraficoVelas.tsx` (el gráfico),
+  `lib/` (api, formato, utils). Base copiada/adaptada de trading-bot/dashboard.
 
 ## Comandos
 
