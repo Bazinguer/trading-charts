@@ -1,6 +1,6 @@
 # Trading Charts — UX Patterns
 
-> Layout, tema, login, watchlists y tablas de datos financieros.
+> Layout, tema, login, watchlists, buscador y DataTable financiera.
 > La entidad principal de la app es el **gráfico**: todo lo demás le sirve.
 
 **Docs relacionados:** [BRAND.md](./BRAND.md) (tokens, colores financieros)
@@ -9,66 +9,28 @@
 
 ## App Shell
 
+Sin sidebar. Una top bar a ancho completo y el contenido debajo.
+
 ```
 ┌─────────────────────────────────────────────┐
-│ Header (h-14, sticky top-0, z-50)           │
-├──────────┬──────────────────────────────────┤
-│          │                                  │
-│ Sidebar  │   Main Content (flex-1)          │
-│ floating │   (p-4 md:p-6, overflow-auto)    │
-│ card     │                                  │
-│          │                                  │
-└──────────┴──────────────────────────────────┘
+│ Top bar (h-14, sticky top-0, z-50)          │
+│ Logo      Inicio | Gráficos     [tema] [⏻] │
+├─────────────────────────────────────────────┤
+│                                             │
+│   Main Content (flex-1)                     │
+│   (p-4 md:p-6, overflow-auto)               │
+│                                             │
+└─────────────────────────────────────────────┘
 ```
 
-### Header
+### Top bar
 
-- Altura `h-14`, sticky `top-0 z-50`, **sin `border-b`** (separación limpia con
-  el sidebar floating card).
-- Izquierda: botón sidebar toggle (icono `PanelLeft`, estilizado como card:
-  `bg-card border shadow-sm rounded-lg h-10 w-10`, solo desktop `hidden md:flex`)
-  + icono `CandlestickChart` + "Trading Charts".
-- Derecha: toggle de tema (Sun/Moon) + menú de usuario (cerrar sesión).
-- Mobile: hamburger en lugar de `PanelLeft`.
-
-### Sidebar — Floating Card
-
-Tarjeta flotante, no panel pegado al borde.
-
-**Aside (contenedor externo):**
-```
-fixed left-0 top-14 z-40
-h-[calc(100vh-3.5rem)]
-p-2 pb-4
-transition-all duration-200
-md:sticky md:translate-x-0
-```
-
-**Card interna (lo que se ve):**
-```
-flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm
-```
-
-**Anchos:**
-- Expanded: `w-[calc(14rem+1rem)]` → card interna 14rem (224px)
-- Collapsed: `w-[calc(4rem+1rem)]` → card interna 4rem (64px)
-- El `+1rem` es el padding `p-2` del aside
-
-**Nav items expanded:**
-```
-flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
-Activo:   bg-accent text-accent-foreground
-Inactivo: text-muted-foreground hover:bg-accent hover:text-accent-foreground
-```
-
-**Nav items collapsed:** `flex h-10 w-10 items-center justify-center rounded-lg
-transition-colors`, con `<Tooltip>` mostrando el label.
-
-- Navegación mínima: **Inicio** (listas), **Gráfico** (último símbolo visto),
-  **Ajustes**. Footer: versión `text-[10px] text-muted-foreground`.
-- Botón toggle en el **Header** (no dentro del sidebar).
-- Estado persistido en `localStorage` (`tc-sidebar-colapsado`).
-- Mobile: overlay negro + slide-in desde la izquierda.
+- Altura `h-14`, sticky `top-0 z-50`, ancho completo.
+- Izquierda: icono `CandlestickChart` + "Trading Charts".
+- Centro: nav **Inicio | Gráficos**, estado activo por ruta
+  (`text-foreground` activo, `text-muted-foreground hover:text-foreground`
+  inactivo).
+- Derecha: toggle de tema (Sun/Moon) + cerrar sesión.
 
 ### Main Content
 
@@ -78,9 +40,37 @@ transition-colors`, con `<Tooltip>` mostrando el label.
 </main>
 ```
 
-**Excepción — página de gráfico:** `/grafico/:simbolo` reduce el padding
-(`p-2`) y usa altura completa: el lienzo de KLineChart es el protagonista
-(`flex-1 min-h-0`), no una card más entre secciones.
+**REGLA — sin `max-width` ni `container`:** la pantalla ultra-wide se
+aprovecha entera. El ancho solo se acota en formularios dentro de `Dialog`.
+
+**Excepción — `/grafico/:simbolo`:** casi full-bleed (`p-2`, lienzo
+`flex-1 min-h-0`): KLineChart es el protagonista, no una card más. Es la
+**única** vista con columna lateral: una barra vertical fina de herramientas
+de dibujo pegada al lienzo (estilo TradingView/Investing). Es contextual del
+gráfico — nunca navegación global.
+
+---
+
+## Volver (backLink estilo iOS)
+
+Adaptado del `PageHeader` de jd-facturacion: Link pequeño arriba a la
+izquierda, sin breadcrumbs.
+
+```tsx
+<Link
+  to={destino}
+  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+>
+  <ChevronLeft className="h-3.5 w-3.5" />
+  {etiqueta}
+</Link>
+```
+
+- Navega a la **ruta padre explícita**, no `history.back()` (un refresh o un
+  enlace directo no deben romperlo).
+- Si hay varios orígenes posibles, el origen viaja en `state.from`.
+- Uso: `/grafico/:simbolo` vuelve a **Inicio** o a **/graficos** según de
+  dónde se llegó.
 
 ---
 
@@ -89,7 +79,7 @@ transition-colors`, con `<Tooltip>` mostrando el label.
 - Estrategia **class-based invertida**: sin clase = oscuro (`:root`); la clase
   `.light` en `<html>` activa el claro. Ver tokens en [BRAND.md](./BRAND.md).
 - Modos: binario `oscuro | claro` (sin "system" — YAGNI).
-- Toggle en el Header (Sun/Moon). localStorage key `tc-tema`.
+- Toggle en la top bar (Sun/Moon). localStorage key `tc-tema`.
 - Implementación: **contexto React** (`ProveedorTema`), no módulo TS puro.
   Por qué: el gráfico KLineChart no se restyla con CSS — `Grafico` necesita
   reaccionar al cambio de tema y llamar a `chart.setStyles()`.
@@ -187,9 +177,8 @@ Un solo usuario. Sin registro, sin recuperación de contraseña, sin roles.
 ```
 
 - Última tab activa persistida (`localStorage` `tc-lista-activa`).
-- Contenido de cada tab: **tabla Símbolo / Último / % Var** (formato abajo).
-- **Click en fila → navega a `/grafico/:simbolo`.** Aquí el row click SÍ navega
-  (no abre Sheet): el destino es la razón de ser de la app.
+- Contenido de cada tab: la **DataTable financiera** (ver más abajo); click
+  en fila → `/grafico/:simbolo`.
 - **Los dibujos de AT se anclan al SÍMBOLO, no a la lista.** Un símbolo en
   varias listas comparte su análisis; las listas son solo organización de
   acceso. Borrar una lista NUNCA borra dibujos.
@@ -198,7 +187,38 @@ Un solo usuario. Sin registro, sin recuperación de contraseña, sin roles.
 
 ---
 
-## Tablas de datos financieros
+## Buscador de símbolos
+
+Combobox (`Popover` + `Command`) con búsqueda en vivo multi-fuente:
+catálogo de Binance cacheado + búsqueda en Yahoo.
+
+- Cada resultado lleva un badge del tipo de activo: Cripto / Acción / ETF /
+  Índice / Fondo.
+- Al seleccionar un símbolo nuevo se descarga su histórico automáticamente,
+  con estado "Descargando…" mientras dura.
+
+---
+
+## DataTable financiera
+
+La tabla de símbolos (tabs de Inicio y `/graficos`).
+
+### Columnas
+
+Nombre · Símbolo · Último · % var. · Apertura · Máximo · Mínimo ·
+Resultados · Acciones.
+
+- **Resultados** (earnings): oculta por defecto hasta que haya datos.
+- **Acciones**: botón explícito al gráfico; la fila entera también navega
+  (aquí el row click SÍ navega, no abre Sheet: el destino es la razón de ser
+  de la app).
+
+### Ordenación y visibilidad
+
+- Click en cabecera cicla **asc → desc**. Iconos: `ArrowUpDown` (sin orden),
+  `ArrowUp`, `ArrowDown`.
+- Botón "Columnas" con `DropdownMenuCheckboxItem` por columna; visibilidad
+  persistida en `localStorage` (`tc-columnas`).
 
 ### Superficie
 
@@ -211,9 +231,9 @@ Un solo usuario. Sin registro, sin recuperación de contraseña, sin roles.
 ```
 Header alignment = cell alignment. SIEMPRE.
 
-Símbolo (primera columna):        LEFT  — greedy
-Cifras (precio, % var, volumen):  RIGHT + tabular-nums
-Badges / acciones:                CENTER
+Texto (Nombre, Símbolo):                 LEFT  — Nombre greedy
+Cifras (Último, % var., OHLC, volumen):  RIGHT + tabular-nums
+Badges / Resultados / Acciones:          CENTER
 ```
 
 Las cifras van a la DERECHA (a diferencia del DS JomBotix, que centra):
@@ -245,11 +265,6 @@ function VariacionPct({ valor }: { valor: number }) {
 }
 ```
 
-### Columna primaria (stacked cell)
-
-Símbolo `font-medium` + nombre debajo en `text-xs text-muted-foreground`
-(ej.: "BTCUSDT" / "Bitcoin").
-
 ---
 
 ## Decisiones explícitas — NO hacemos
@@ -261,5 +276,7 @@ Símbolo `font-medium` + nombre debajo en `text-xs text-muted-foreground`
   de lista); estado local basta.
 - **NO** dark mode 3-state — binario, oscuro por defecto.
 - **NO** i18n — todo en español.
-- **NO** breadcrumbs ni backLinks — la navegación es plana (Inicio ↔ Gráfico).
+- **NO** breadcrumbs — el backLink de una línea basta (ver "Volver").
+- **NO** sidebar ni barras laterales globales — la única columna lateral es la
+  de herramientas de dibujo en `/grafico` (contextual).
 - **NO** paginación, batch actions ni inline editing en tablas.

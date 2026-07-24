@@ -59,7 +59,27 @@ export interface Lista {
 
 export interface ResumenSimbolo {
   simbolo: string
+  nombre: string | null
   ultimo: number | null
   var_pct: number | null
+  apertura: number | null
+  maximo: number | null
+  minimo: number | null
   fecha: string | null
+}
+
+export type TipoActivo = "cripto" | "accion" | "etf" | "indice" | "fondo"
+
+export interface ResultadoBusqueda {
+  simbolo: string
+  nombre: string
+  tipo: TipoActivo
+  fuente: "binance" | "yahoo"
+}
+
+export interface AnalisisGuardado {
+  simbolo: string
+  nombre: string | null
+  dibujos: number
+  actualizado: string
 }

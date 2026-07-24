@@ -38,6 +38,19 @@ def obtener(simbolo: str) -> list[dict]:
     return json.loads(fila[0]) if fila else []
 
 
+def analisis() -> list[dict]:
+    """Símbolos con dibujos guardados: cuántos y cuándo se tocaron por última vez."""
+    with _conexion() as conexion:
+        filas = conexion.execute(
+            "SELECT simbolo, overlays, actualizado FROM dibujos ORDER BY actualizado DESC"
+        ).fetchall()
+    return [
+        {"simbolo": simbolo, "dibujos": n, "actualizado": actualizado}
+        for simbolo, overlays, actualizado in filas
+        if (n := len(json.loads(overlays)))
+    ]
+
+
 def guardar(simbolo: str, overlays: list[dict]) -> None:
     ahora = datetime.now(UTC).isoformat(timespec="seconds")
     with _conexion() as conexion:

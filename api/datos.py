@@ -5,7 +5,8 @@ continúa desde la última vela guardada (descarga incremental), por lo que se
 puede relanzar cuantas veces se quiera sin re-descargar todo.
 
 Mismo contrato de columnas que crypto_lab (open_time UTC + OHLCV); las
-acciones (API de Yahoo, patrón de stocks_lab) llegarán en una fase posterior.
+acciones e índices (API de Yahoo) viven en api/datos_yahoo.py con el mismo
+contrato y la misma ruta de parquet.
 
 Uso:
     uv run python -m api.datos
@@ -23,8 +24,8 @@ API_URL = "https://api.binance.com/api/v3/klines"
 MAX_VELAS_POR_PETICION = 1000
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 INTERVALO = "1d"
+DESDE = "2017-08-01"  # BTCUSDT cotiza en Binance desde 2017-08-17
 
-# BTCUSDT cotiza en Binance desde 2017-08-17
 SIMBOLOS = ["BTCUSDT", "ETHUSDT"]
 
 COLUMNAS_API = [
@@ -43,8 +44,13 @@ COLUMNAS_API = [
 ]
 
 
-def ruta_parquet(symbol: str) -> Path:
-    return DATA_DIR / f"{symbol}_{INTERVALO}.parquet"
+def ruta_parquet(simbolo: str) -> Path:
+    """Ruta única del parquet diario de un símbolo, sea cual sea su fuente.
+
+    Sanea el `^` de los índices de Yahoo (^GSPC → idx_GSPC) para no meter
+    caracteres incómodos en nombres de fichero (patrón de stocks_lab).
+    """
+    return DATA_DIR / f"{simbolo.replace('^', 'idx_')}_{INTERVALO}.parquet"
 
 
 def _a_dataframe(filas: list[list]) -> pd.DataFrame:
@@ -114,7 +120,7 @@ def actualizar(symbol: str, desde: str) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--symbol", help="Un símbolo concreto; por defecto, todos")
-    parser.add_argument("--desde", default="2017-08-01", help="Fecha de inicio (YYYY-MM-DD)")
+    parser.add_argument("--desde", default=DESDE, help="Fecha de inicio (YYYY-MM-DD)")
     args = parser.parse_args()
     for symbol in [args.symbol] if args.symbol else SIMBOLOS:
         actualizar(symbol, args.desde)

@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react"
+import { AlignJustify, Eraser, Minus, Save, Slash, Square, Type } from "lucide-react"
 import { dispose, init } from "klinecharts"
 import type { Chart } from "klinecharts"
 
+import { Button } from "@/components/ui/button"
 import { api, apiPut, ErrorApi } from "@/lib/api"
 
 // Overlays incorporados de KLineChart que exponemos en la barra de dibujo.
 const HERRAMIENTAS = [
-  { name: "segment", etiqueta: "Línea" },
-  { name: "horizontalStraightLine", etiqueta: "Horizontal" },
-  { name: "rect", etiqueta: "Rectángulo" },
-  { name: "fibonacciLine", etiqueta: "Fibonacci" },
-  { name: "simpleAnnotation", etiqueta: "Texto" },
+  { name: "segment", etiqueta: "Línea", Icono: Slash },
+  { name: "horizontalStraightLine", etiqueta: "Horizontal", Icono: Minus },
+  { name: "rect", etiqueta: "Rectángulo", Icono: Square },
+  { name: "fibonacciLine", etiqueta: "Fibonacci", Icono: AlignJustify },
+  { name: "simpleAnnotation", etiqueta: "Texto", Icono: Type },
 ]
 
 type Velas = { timestamp: number; open: number; high: number; low: number; close: number; volume: number }[]
@@ -36,7 +38,7 @@ export function GraficoVelas({ simbolo, intervalo }: { simbolo: string; interval
     const arrancar = async () => {
       let velas: Velas
       try {
-        velas = await api<Velas>(`/api/velas/${simbolo}?intervalo=${intervalo}`)
+        velas = await api<Velas>(`/api/velas/${encodeURIComponent(simbolo)}?intervalo=${intervalo}`)
       } catch (e) {
         setEstado(`Error cargando velas: ${e instanceof ErrorApi ? e.message : "sin conexión"}`)
         return
@@ -58,7 +60,9 @@ export function GraficoVelas({ simbolo, intervalo }: { simbolo: string; interval
         },
       })
 
-      const { overlays } = await api<{ overlays: DibujoGuardado[] }>(`/api/dibujos/${simbolo}`)
+      const { overlays } = await api<{ overlays: DibujoGuardado[] }>(
+        `/api/dibujos/${encodeURIComponent(simbolo)}`,
+      )
       if (!cancelado && overlays.length > 0) {
         chart.createOverlay(overlays)
         setEstado(`${overlays.length} dibujos restaurados`)
@@ -93,7 +97,7 @@ export function GraficoVelas({ simbolo, intervalo }: { simbolo: string; interval
       extendData: overlay.extendData,
     }))
     try {
-      await apiPut(`/api/dibujos/${simbolo}`, { overlays })
+      await apiPut(`/api/dibujos/${encodeURIComponent(simbolo)}`, { overlays })
       setEstado(`${overlays.length} dibujos guardados`)
     } catch {
       setEstado("Error al guardar")
@@ -106,21 +110,53 @@ export function GraficoVelas({ simbolo, intervalo }: { simbolo: string; interval
   }
 
   return (
-    <div className="grafico">
-      <div className="barra">
+    <div className="flex min-h-0 flex-1 gap-2">
+      {/* Barra de herramientas vertical, pegada al borde izquierdo del lienzo */}
+      <div className="flex w-10 shrink-0 flex-col items-center gap-0.5 rounded-[10px] border bg-card p-1">
         {HERRAMIENTAS.map((h) => (
-          <button key={h.name} onClick={() => dibujar(h.name)}>
-            {h.etiqueta}
-          </button>
+          <Button
+            key={h.name}
+            variant="ghost"
+            size="icon-sm"
+            title={h.etiqueta}
+            aria-label={h.etiqueta}
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => dibujar(h.name)}
+          >
+            <h.Icono />
+          </Button>
         ))}
-        <span className="separador" />
-        <button className="primario" onClick={guardar}>
-          Guardar
-        </button>
-        <button onClick={limpiar}>Limpiar</button>
-        <span className="estado">{estado}</span>
+        <div className="my-1 h-px w-5 shrink-0 bg-border" />
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          title="Guardar dibujos"
+          aria-label="Guardar dibujos"
+          className="text-primary hover:text-primary"
+          onClick={() => void guardar()}
+        >
+          <Save />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          title="Limpiar dibujos (sin guardar)"
+          aria-label="Limpiar dibujos"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={limpiar}
+        >
+          <Eraser />
+        </Button>
       </div>
-      <div ref={contenedorRef} className="lienzo" />
+
+      <div className="relative min-w-0 flex-1">
+        <div ref={contenedorRef} className="h-full w-full" />
+        {estado && (
+          <span className="pointer-events-none absolute bottom-2 left-2 z-10 rounded-md border bg-card/90 px-2 py-1 text-xs text-muted-foreground">
+            {estado}
+          </span>
+        )}
+      </div>
     </div>
   )
 }

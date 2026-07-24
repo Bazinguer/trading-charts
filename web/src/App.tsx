@@ -4,6 +4,7 @@ import { Shell } from "@/components/shell/Shell"
 import { ProveedorSesion, useSesion } from "@/contextos/sesion"
 import { ProveedorTema } from "@/contextos/tema"
 import { Grafico } from "@/paginas/Grafico"
+import { Graficos } from "@/paginas/Graficos"
 import { Inicio } from "@/paginas/Inicio"
 import { Login } from "@/paginas/Login"
 
@@ -29,6 +30,7 @@ export default function App() {
               }
             >
               <Route index element={<Inicio />} />
+              <Route path="/graficos" element={<Graficos />} />
               <Route path="/grafico/:simbolo" element={<Grafico />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

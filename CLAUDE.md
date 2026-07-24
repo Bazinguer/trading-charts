@@ -14,9 +14,12 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
   repo upstream en la cuenta de GitHub del usuario.
 - Dibujos por símbolo (no por símbolo+timeframe): anclados a tiempo+precio,
   el análisis hecho en diario se ve también en semanal.
-- Datos: velas 1d desde Binance (`api/datos.py`, incremental, parquet); el
-  semanal se agrega desde el diario (una sola fuente de verdad en disco).
-  Acciones e índices (API de Yahoo, patrón de stocks_lab) en fase posterior.
+- Datos multi-fuente: velas 1d de Binance (`api/datos.py`, incremental) y de
+  Yahoo (`api/datos_yahoo.py`, acciones/índices/ETFs/fondos, OHLC ajustado por
+  splits+dividendos — patrón heredado de stocks_lab); todo en parquet con el
+  mismo contrato de columnas; el semanal se agrega desde el diario (una sola
+  fuente de verdad en disco). Al añadir un símbolo por el buscador se descarga
+  su histórico automáticamente. Cobertura de fondos UCITS en Yahoo: irregular.
 - BD de dibujos: SQLite `data/dibujos.db`. En producción irá en volumen con
   backup — perder dibujos es perder el propósito del proyecto. Las listas de
   seguimiento viven en la misma BD (tablas `listas` y `lista_simbolos`).
@@ -28,18 +31,29 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
   exige salvo login/logout/sesion.
 - Tema OSCURO por defecto (`:root`), claro como override (`.light`). Sistema de
   diseño JomBotix adaptado en `docs/design/` (BRAND.md y UX_PATTERNS.md).
+- Navegación: top bar (Inicio | Gráficos), SIN sidebar. La única columna
+  lateral es la barra de herramientas de dibujo, contextual a la vista de
+  gráfico. Contenido siempre fluido: sin max-width (pantalla ultra-wide).
 
 ## Estructura
 
 - `api/` — FastAPI (puerto 8010 en dev): `velas.py` (`/api/velas/{simbolo}`,
-  `/api/resumen`), `dibujos.py` (`/api/dibujos/{simbolo}` GET/PUT),
-  `listas.py` (`/api/listas` CRUD + PUT `/{id}/simbolos` reemplazo completo),
-  `sesion.py` (login/logout/sesion). `datos.py` descarga los parquet.
+  `/api/resumen` con OHLC del día), `dibujos.py` (`/api/dibujos/{simbolo}`
+  GET/PUT + `/api/analisis` listado de AT guardados), `listas.py`
+  (`/api/listas` CRUD + PUT `/{id}/simbolos` reemplazo completo),
+  `busqueda.py` (`/api/buscar` unificado Binance+Yahoo), `simbolos.py`
+  (registro nombre/tipo/fuente), `sesion.py` (login/logout/sesion),
+  `datos.py`/`datos_yahoo.py` (descarga; `POST /api/datos/{simbolo}`).
 - `web/` — React 19 + Vite + TS + Tailwind v4 + shadcn (new-york) + KLineChart.
-  Proxy `/api` → :8010 en dev. `src/`: `paginas/` (Login, Inicio, Grafico),
-  `contextos/` (tema, sesion), `components/shell/` (header + sidebar flotante),
-  `components/ui/` (shadcn), `components/GraficoVelas.tsx` (el gráfico),
-  `lib/` (api, formato, utils). Base copiada/adaptada de trading-bot/dashboard.
+  Proxy `/api` → :8010 en dev. `src/`: `paginas/` (Login, Inicio con tabs por
+  lista y DataTable ordenable con selector de columnas, Graficos, Grafico),
+  `contextos/` (tema, sesion), `components/shell/` (top bar),
+  `components/PageHeader.tsx` (backLink estilo iOS),
+  `components/GraficoVelas.tsx` (gráfico + barra vertical de dibujo),
+  `components/ui/` (shadcn), `lib/` (api, formato, utils).
+- `stocks_lab/` — laboratorio heredado de trading-bot (origen del patrón de
+  datos Yahoo). Los `exp_*` dependen de `crypto_lab` (trading-bot) y aquí NO
+  corren: son referencia + registro de resultados.
 
 ## Comandos
 

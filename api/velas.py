@@ -32,19 +32,21 @@ def cargar(simbolo: str, intervalo: str) -> list[dict]:
 
 
 def resumen(simbolos: list[str]) -> list[dict]:
-    """Último close, variación % contra el close anterior y fecha del último dato.
+    """Última vela diaria de cada símbolo: cierre, variación % y OHLC del día.
 
     Un símbolo sin parquet no es un error: sale con valores null (la lista de
     seguimiento puede contener símbolos aún no descargados).
     """
+    campos = ("ultimo", "var_pct", "apertura", "maximo", "minimo", "fecha")
     resultado = []
     for simbolo in simbolos:
         destino = ruta_parquet(simbolo)
         if not destino.exists():
-            resultado.append({"simbolo": simbolo, "ultimo": None, "var_pct": None, "fecha": None})
+            resultado.append({"simbolo": simbolo, **dict.fromkeys(campos)})
             continue
-        df = pd.read_parquet(destino, columns=["open_time", "close"])
-        ultimo = float(df["close"].iloc[-1])
+        df = pd.read_parquet(destino)
+        ultima = df.iloc[-1]
+        ultimo = float(ultima["close"])
         anterior = float(df["close"].iloc[-2]) if len(df) > 1 else None
         var_pct = round((ultimo / anterior - 1) * 100, 2) if anterior else None
         resultado.append(
@@ -52,10 +54,18 @@ def resumen(simbolos: list[str]) -> list[dict]:
                 "simbolo": simbolo,
                 "ultimo": ultimo,
                 "var_pct": var_pct,
-                "fecha": df["open_time"].iloc[-1].date().isoformat(),
+                "apertura": float(ultima["open"]),
+                "maximo": float(ultima["high"]),
+                "minimo": float(ultima["low"]),
+                "fecha": ultima["open_time"].date().isoformat(),
             }
         )
     return resultado
+
+
+def total(simbolo: str) -> int:
+    """Número de velas diarias guardadas de un símbolo."""
+    return len(pd.read_parquet(ruta_parquet(simbolo), columns=["open_time"]))
 
 
 def _a_semanal(df: pd.DataFrame) -> pd.DataFrame:
