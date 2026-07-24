@@ -42,8 +42,8 @@ proyectos (jd-facturacion, jd-gestion, jd-serps-ia-tracker, trading-bot).
 ### Próximos Pasos Sugeridos:
 
 1. **FASE GRÁFICO** (el objetivo de la próxima sesión): frecuencias 5min/1h/4h/1d/1s/1m — exige decidir cómo traer velas intradía sin romper "una sola fuente de verdad en disco" (`datos.py` hoy solo baja 1d y el semanal se agrega) —, tipo velas/línea, y el buscador de indicadores. Referencia visual: captura de Investing del usuario.
-2. Merge `feat/base-app` → `main` y decidir si se relaja el hook `git_guard.py` para este proyecto personal sin remoto.
-3. Decidir si se trackea `.claude/` en git (hoy untracked).
+2. Merge `feat/base-app` → `main` (git_guard ya NO bloquea main: quedó solo con avisos de operaciones destructivas).
+3. Decidir si se trackea `.claude/` en git (hoy untracked). Limpieza crítica HECHA (2026-07-25): borrados guardians/base-conocimiento/quality-gate/git-branches/security-reviewer/error-logs-analyst/default_log_system/*.bak; hooks reminder+git_guard adaptados; settings con ruff real y sin permisos docker/psql. PENDIENTE adaptar sobre la marcha cuando se usen: ui-shadcn, ui-tester(-console), commit-manager, session-manager, validator, frontend-guardian, orquestador, ejecutar-plan, researcher, debug-orchestrator (todos con referencias al proyecto médico/trading-bot).
 4. Rematar el renombrado (ANTES de relanzar Claude Code): `rm /home/jombotix/workspace/charts` (symlink) y `mv ~/.claude/projects/-home-jombotix-workspace-charts ~/.claude/projects/-home-jombotix-workspace-trading-charts`.
 5. Probar los fondos indexados UCITS reales del usuario en el buscador (cobertura Yahoo irregular; tickers tipo `0P0000...`).
 6. La lista "indices" tiene SOLUSD sin datos (añadido con el flujo viejo): quitarlo y re-añadirlo desde el buscador.
