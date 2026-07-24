@@ -22,11 +22,11 @@ function ItemNav({
     <Link
       to={a}
       className={cn(
-        "flex items-center gap-2 rounded-[9px] px-3 py-1.5 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+        "flex items-center gap-2 rounded-[9px] px-3.5 py-2 text-[15px] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
         activo && "bg-accent text-primary",
       )}
     >
-      <Icono className="h-4 w-4" />
+      <Icono className="h-[18px] w-[18px]" />
       {etiqueta}
     </Link>
   )
@@ -45,10 +45,10 @@ export function Shell() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <header className="sticky top-0 z-50 flex h-14 shrink-0 items-center bg-background px-4">
-        <Link to="/" className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight">
-          <span className="grid size-[30px] place-items-center rounded-[9px] bg-accent text-primary">
-            <ChartCandlestick className="size-4" />
+      <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center bg-background px-4">
+        <Link to="/" className="flex items-center gap-2.5 text-base font-semibold tracking-tight">
+          <span className="grid size-9 place-items-center rounded-[9px] bg-accent text-primary">
+            <ChartCandlestick className="size-[18px]" />
           </span>
           Trading Charts
         </Link>
@@ -72,7 +72,7 @@ export function Shell() {
           aria-label="Cambiar tema"
           className="text-muted-foreground"
         >
-          {claro ? <Sun /> : <Moon />}
+          {claro ? <Sun className="size-5" /> : <Moon className="size-5" />}
         </Button>
         <Button
           variant="ghost"
@@ -81,7 +81,7 @@ export function Shell() {
           aria-label="Cerrar sesión"
           className="text-muted-foreground"
         >
-          <LogOut />
+          <LogOut className="size-5" />
         </Button>
       </header>
 
