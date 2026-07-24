@@ -13,6 +13,8 @@ export function Grafico() {
   const [nombre, setNombre] = useState<string | null>(null)
 
   const volverA = (state as { from?: string } | null)?.from ?? "/graficos"
+  // Patrón DS: el back link nombra el DESTINO, nunca un genérico "Volver".
+  const etiquetaVolver = volverA === "/" ? "Inicio" : "Gráficos"
 
   // Nombre del activo para el título; sin él la página funciona igual.
   useEffect(() => {
@@ -32,10 +34,10 @@ export function Grafico() {
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <Link
         to={volverA}
-        className="inline-flex w-fit items-center gap-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
         <ChevronLeft className="h-3.5 w-3.5" />
-        Volver
+        {etiquetaVolver}
       </Link>
       <div className="flex items-center gap-3">
         <h1 className="text-lg font-semibold">

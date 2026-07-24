@@ -3,8 +3,9 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  ChartCandlestick,
+  ArrowUpRight,
   ChevronsUpDown,
+  ListChecks,
   LoaderCircle,
   Pencil,
   Plus,
@@ -14,6 +15,8 @@ import {
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
+import { EmptyState } from "@/components/EmptyState"
+import { PageHeader } from "@/components/PageHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -198,10 +201,10 @@ function BuscadorSimbolo({
           size="sm"
           role="combobox"
           aria-expanded={abierto}
-          className="w-64 justify-between font-normal text-muted-foreground"
+          className="w-64 justify-between font-normal"
         >
           <span className="flex items-center gap-1.5">
-            <Plus /> Añadir símbolo…
+            <Plus className="text-primary" /> Añadir símbolo…
           </span>
           <ChevronsUpDown className="opacity-50" />
         </Button>
@@ -274,20 +277,20 @@ function CabeceraOrdenable({
 }) {
   const dir = orden?.col === columna.id ? orden.dir : null
   const Icono = dir === "asc" ? ArrowUp : dir === "desc" ? ArrowDown : ArrowUpDown
+  // Patrón serps: cabecera ordenable como texto plano con flecha, no botón ghost.
   return (
-    <Button
-      variant="ghost"
-      size="sm"
+    <button
+      type="button"
       onClick={() => alOrdenar(columna.id)}
+      aria-label={`Ordenar por ${columna.etiqueta}`}
       className={cn(
-        "h-8 gap-1 px-2.5",
-        columna.numerica ? "-mr-2.5" : "-ml-2.5",
-        !dir && "[&_svg]:opacity-40",
+        "inline-flex items-center gap-1 rounded-sm font-medium transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+        dir ? "text-foreground" : "text-muted-foreground",
       )}
     >
       {columna.etiqueta}
-      <Icono className="size-3.5" />
-    </Button>
+      <Icono className="h-3.5 w-3.5" aria-hidden="true" />
+    </button>
   )
 }
 
@@ -322,12 +325,16 @@ function TablaLista({
   visibles,
   alCambiarColumna,
   alGuardarSimbolos,
+  alRenombrar,
+  alBorrar,
 }: {
   lista: Lista
   resumen: Record<string, ResumenSimbolo>
   visibles: Visibilidad
   alCambiarColumna: (col: ColId, visible: boolean) => void
   alGuardarSimbolos: (simbolos: string[]) => Promise<void>
+  alRenombrar: () => void
+  alBorrar: () => void
 }) {
   const navegar = useNavigate()
   const [orden, setOrden] = useState<Orden>(null)
@@ -366,15 +373,16 @@ function TablaLista({
     navegar(`/grafico/${encodeURIComponent(simbolo)}`, { state: { from: "/" } })
 
   return (
-    <div className="flex flex-col gap-3 rounded-[14px] border bg-card p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="flex flex-col gap-3">
+      {/* Toolbar FUERA del borde de la tabla (patrón DS) */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <BuscadorSimbolo
           simbolos={simbolos}
           alAnadir={(simbolo) => alGuardarSimbolos([...simbolos, simbolo])}
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="text-muted-foreground">
+            <Button variant="outline" size="sm" className="w-fit text-muted-foreground">
               <Settings2 /> Columnas
             </Button>
           </DropdownMenuTrigger>
@@ -392,72 +400,98 @@ function TablaLista({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        <div className="flex items-center gap-1 sm:ml-auto">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Renombrar lista"
+            title="Renombrar lista"
+            className="text-muted-foreground"
+            onClick={alRenombrar}
+          >
+            <Pencil />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Borrar lista"
+            title="Borrar lista"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={alBorrar}
+          >
+            <Trash2 />
+          </Button>
+        </div>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            {columnasVisibles.map((c) => (
-              <TableHead key={c.id} className={cn(c.numerica && "text-right")}>
-                <CabeceraOrdenable columna={c} orden={orden} alOrdenar={alOrdenar} />
-              </TableHead>
-            ))}
-            <TableHead className="w-20 text-right">Acciones</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {ordenados.length === 0 && (
-            <TableRow className="hover:bg-transparent">
-              <TableCell
-                colSpan={columnasVisibles.length + 1}
-                className="py-6 text-center text-muted-foreground"
-              >
-                Lista vacía: usa «Añadir símbolo» para empezar
-              </TableCell>
-            </TableRow>
-          )}
-          {ordenados.map((simbolo) => {
-            const r = resumen[simbolo]
-            return (
-              <TableRow
-                key={simbolo}
-                className="cursor-pointer"
-                onClick={() => irAlGrafico(simbolo)}
-              >
+      <div className="overflow-hidden rounded-md border bg-card">
+        {ordenados.length === 0 ? (
+          <EmptyState
+            icon={<ListChecks className="h-6 w-6" />}
+            title="Lista vacía"
+            description="Usa «Añadir símbolo» para empezar a seguir tus activos."
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
                 {columnasVisibles.map((c) => (
-                  <Celda key={c.id} col={c} simbolo={simbolo} r={r} />
+                  <TableHead key={c.id} className={cn(c.numerica && "text-right")}>
+                    <CabeceraOrdenable columna={c} orden={orden} alOrdenar={alOrdenar} />
+                  </TableHead>
                 ))}
-                <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Ver gráfico de ${simbolo}`}
-                    className="text-muted-foreground hover:text-primary"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      irAlGrafico(simbolo)
-                    }}
-                  >
-                    <ChartCandlestick />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Quitar ${simbolo}`}
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void alGuardarSimbolos(simbolos.filter((s) => s !== simbolo))
-                    }}
-                  >
-                    <X />
-                  </Button>
-                </TableCell>
+                <TableHead className="w-24 text-right">Acciones</TableHead>
               </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+            </TableHeader>
+            <TableBody>
+              {ordenados.map((simbolo) => {
+                const r = resumen[simbolo]
+                return (
+                  <TableRow
+                    key={simbolo}
+                    className="cursor-pointer"
+                    onClick={() => irAlGrafico(simbolo)}
+                  >
+                    {columnasVisibles.map((c) => (
+                      <Celda key={c.id} col={c} simbolo={simbolo} r={r} />
+                    ))}
+                    <TableCell className="py-1.5 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Ver gráfico de ${simbolo}`}
+                          title="Ver gráfico"
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            irAlGrafico(simbolo)
+                          }}
+                        >
+                          <ArrowUpRight />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Quitar ${simbolo} de la lista`}
+                          title="Quitar de la lista"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void alGuardarSimbolos(simbolos.filter((s) => s !== simbolo))
+                          }}
+                        >
+                          <X />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </div>
     </div>
   )
 }
@@ -546,81 +580,65 @@ export function Inicio() {
     await ejecutar(() => apiPut(`/api/listas/${id}`, { nombre }))
   }
 
-  const listaActiva = listas?.find((l) => String(l.id) === tab)
-
-  const borrarActiva = () => {
-    if (!listaActiva) return
-    if (!window.confirm(`¿Borrar la lista "${listaActiva.nombre}"?`)) return
-    void ejecutar(() => apiDelete(`/api/listas/${listaActiva.id}`))
+  const borrar = (lista: Lista) => {
+    if (!window.confirm(`¿Borrar la lista "${lista.nombre}"?`)) return
+    void ejecutar(() => apiDelete(`/api/listas/${lista.id}`))
   }
 
   if (listas === null) {
     return (
-      <div className="flex flex-col gap-3">
-        <Skeleton className="h-9 w-72" />
-        <Skeleton className="h-48 w-full rounded-[14px]" />
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-48 w-full rounded-md" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <h1 className="text-lg font-semibold">Listas de seguimiento</h1>
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title="Listas de seguimiento"
+        description="Agrupa tus activos por listas y salta a su gráfico"
+        icon={ListChecks}
+      >
+        <Button onClick={() => setCrearAbierto(true)}>
+          <Plus className="mr-2 h-4 w-4" /> Nueva lista
+        </Button>
+      </PageHeader>
+
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {listas.length === 0 ? (
-        <div className="grid place-items-center gap-3 rounded-[14px] border bg-card p-10 text-center">
-          <p className="text-muted-foreground">Aún no hay listas de seguimiento</p>
-          <Button onClick={() => setCrearAbierto(true)}>
-            <Plus /> Crear la primera lista
-          </Button>
+        <div className="overflow-hidden rounded-md border bg-card">
+          <EmptyState
+            icon={<ListChecks className="h-6 w-6" />}
+            title="Aún no hay listas de seguimiento"
+            description="Crea la primera lista para agrupar los símbolos que quieres vigilar."
+            action={
+              <Button onClick={() => setCrearAbierto(true)}>
+                <Plus className="mr-2 h-4 w-4" /> Nueva lista
+              </Button>
+            }
+          />
         </div>
       ) : (
-        <Tabs value={tab} onValueChange={setTab}>
-          <div className="flex flex-wrap items-center gap-2">
-            <TabsList>
-              {listas.map((l) => (
-                <TabsTrigger key={l.id} value={String(l.id)}>
-                  {l.nombre}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              aria-label="Nueva lista"
-              onClick={() => setCrearAbierto(true)}
-            >
-              <Plus />
-            </Button>
-            {listaActiva && (
-              <span className="ml-auto flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Renombrar lista"
-                  className="text-muted-foreground"
-                  onClick={() => {
-                    setRenombrar(listaActiva)
-                    setNombreEditado(listaActiva.nombre)
-                  }}
-                >
-                  <Pencil />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Borrar lista"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={borrarActiva}
-                >
-                  <Trash2 />
-                </Button>
-              </span>
-            )}
-          </div>
+        // Tabs underline: decisión canónica del DS (el pill default de shadcn, no).
+        <Tabs value={tab} onValueChange={setTab} className="gap-0">
+          <TabsList className="h-11 w-full justify-start rounded-none border-b bg-transparent p-0">
+            {listas.map((l) => (
+              <TabsTrigger
+                key={l.id}
+                value={String(l.id)}
+                // flex-none y border-0 neutralizan el flex-1 y el borde 1px del
+                // primitivo pill; tailwind-merge conserva el border-b-2 posterior.
+                className="relative flex-none rounded-none border-0 border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-muted-foreground transition-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              >
+                {l.nombre}
+              </TabsTrigger>
+            ))}
+          </TabsList>
           {listas.map((l) => (
-            <TabsContent key={l.id} value={String(l.id)}>
+            <TabsContent key={l.id} value={String(l.id)} className="mt-6">
               <TablaLista
                 lista={l}
                 resumen={resumen}
@@ -631,6 +649,11 @@ export function Inicio() {
                 alGuardarSimbolos={(simbolos) =>
                   ejecutar(() => apiPut(`/api/listas/${l.id}/simbolos`, { simbolos }))
                 }
+                alRenombrar={() => {
+                  setRenombrar(l)
+                  setNombreEditado(l.nombre)
+                }}
+                alBorrar={() => borrar(l)}
               />
             </TabsContent>
           ))}

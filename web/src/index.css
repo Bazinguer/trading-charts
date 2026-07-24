@@ -99,8 +99,13 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-size: 14px;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Tailwind v4 eliminó el cursor:pointer de Preflight para botones (DS) */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
   }
 
   /* Scrollbars finas de marca */

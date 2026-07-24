@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { ChartCandlestick } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
+import { EmptyState } from "@/components/EmptyState"
 import { PageHeader } from "@/components/PageHeader"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -40,24 +41,25 @@ export function Graficos() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Análisis técnico guardados"
+        title="Análisis técnico"
         description="Símbolos con dibujos persistidos: vuelve meses después y compara la previsión con la realidad"
-        icon={<ChartCandlestick className="size-5" />}
+        icon={ChartCandlestick}
       />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {analisis === null ? (
-        <Skeleton className="h-48 w-full rounded-[14px]" />
+        <Skeleton className="h-48 w-full rounded-md" />
       ) : analisis.length === 0 ? (
-        <div className="grid place-items-center gap-2 rounded-[14px] border bg-card p-10 text-center">
-          <p className="text-muted-foreground">Aún no hay análisis guardados</p>
-          <p className="text-xs text-faint">
-            Abre un gráfico desde una lista, dibuja y pulsa «Guardar»
-          </p>
+        <div className="overflow-hidden rounded-md border bg-card">
+          <EmptyState
+            icon={<ChartCandlestick className="h-6 w-6" />}
+            title="Aún no hay análisis guardados"
+            description="Abre un gráfico desde una lista, dibuja y pulsa «Guardar» para verlo aquí."
+          />
         </div>
       ) : (
-        <div className="rounded-[14px] border bg-card p-3">
+        <div className="overflow-hidden rounded-md border bg-card">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
