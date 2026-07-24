@@ -1,0 +1,14 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Datos locales (velas descargadas y BD de dibujos)
+data/
+
+# Frontend
+web/node_modules/
+web/dist/
+
+# Entorno
+.env
