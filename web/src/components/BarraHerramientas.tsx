@@ -92,6 +92,15 @@ const GRUPOS: Grupo[] = [
   },
 ]
 
+// Etiqueta en español de una herramienta por su nombre de overlay.
+export function etiquetaHerramienta(name: string): string {
+  for (const grupo of GRUPOS) {
+    const herramienta = grupo.herramientas.find((h) => h.name === name)
+    if (herramienta) return herramienta.etiqueta
+  }
+  return name
+}
+
 export function BarraHerramientas({
   onDibujar,
   onGuardar,

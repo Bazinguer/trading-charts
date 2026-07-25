@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from "react"
 import { dispose, init } from "klinecharts"
 import type { Chart } from "klinecharts"
 
+import { Trash2 } from "lucide-react"
+
 import { AjustesIndicador } from "@/components/AjustesIndicador"
-import { BarraHerramientas } from "@/components/BarraHerramientas"
+import { BarraHerramientas, etiquetaHerramienta } from "@/components/BarraHerramientas"
 import { SelectorIndicadores } from "@/components/SelectorIndicadores"
+import { Button } from "@/components/ui/button"
 import { useTema } from "@/contextos/tema"
 import { api, apiPut, ErrorApi } from "@/lib/api"
 import {
@@ -113,6 +116,15 @@ export function GraficoVelas({
   const [estado, setEstado] = useState("")
   const [indicadores, setIndicadores] = useState<Indicador[]>([])
   const [ajustesDe, setAjustesDe] = useState<string | null>(null)
+  // Dibujo seleccionado en el lienzo (click sobre él): habilita borrado individual.
+  const [seleccionado, setSeleccionado] = useState<{ id: string; name: string } | null>(null)
+
+  // Callbacks comunes a todo overlay (nuevo o restaurado): rastrear selección.
+  const eventosOverlay = {
+    onSelected: (e: { overlay: { id: string; name: string } }) =>
+      setSeleccionado({ id: e.overlay.id, name: e.overlay.name }),
+    onDeselected: () => setSeleccionado(null),
+  }
 
   // Refs para que la inicialización (efecto con deps [simbolo, intervalo])
   // aplique las preferencias vigentes sin re-crear el gráfico cuando cambian.
@@ -190,7 +202,9 @@ export function GraficoVelas({
       }>(`/api/dibujos/${encodeURIComponent(simbolo)}`)
       if (cancelado) return
 
-      if (overlays.length > 0) chart.createOverlay(overlays)
+      if (overlays.length > 0) {
+        chart.createOverlay(overlays.map((o) => ({ ...o, ...eventosOverlay })))
+      }
       const aplicados = (indicadoresRef.current ?? guardados).map((ind) =>
         crearIndicador(chart, ind),
       )
@@ -207,6 +221,7 @@ export function GraficoVelas({
     return () => {
       cancelado = true
       chartRef.current = null
+      setSeleccionado(null)
       dispose(contenedor)
     }
   }, [simbolo, intervalo])
@@ -214,13 +229,35 @@ export function GraficoVelas({
   const dibujar = (name: string) => {
     const chart = chartRef.current
     if (!chart) return
-    if (name === "simpleAnnotation") {
-      const texto = window.prompt("Texto de la anotación:")
-      if (texto) chart.createOverlay({ name, extendData: texto })
+    // Anotación y etiqueta pintan su extendData como texto: se pide al crear.
+    if (name === "simpleAnnotation" || name === "simpleTag") {
+      const texto = window.prompt("Texto:")
+      if (texto) chart.createOverlay({ name, extendData: texto, ...eventosOverlay })
       return
     }
-    chart.createOverlay(name)
+    chart.createOverlay({ name, ...eventosOverlay })
   }
+
+  const borrarSeleccionado = () => {
+    if (!seleccionado) return
+    chartRef.current?.removeOverlay({ id: seleccionado.id })
+    setSeleccionado(null)
+    setEstado("Dibujo borrado — guarda para consolidar el cambio")
+  }
+
+  // Supr/Backspace borran el dibujo seleccionado (salvo con el foco en un input).
+  useEffect(() => {
+    if (!seleccionado) return
+    const alPulsar = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return
+      const objetivo = e.target as HTMLElement | null
+      if (objetivo && (objetivo.tagName === "INPUT" || objetivo.tagName === "TEXTAREA")) return
+      e.preventDefault()
+      borrarSeleccionado()
+    }
+    window.addEventListener("keydown", alPulsar)
+    return () => window.removeEventListener("keydown", alPulsar)
+  })
 
   // Los handlers leen SIEMPRE de indicadoresRef: también se invocan desde la
   // suscripción del chart (closure del primer render, estado congelado).
@@ -295,6 +332,18 @@ export function GraficoVelas({
 
       <div className="relative min-w-0 flex-1">
         <div ref={contenedorRef} className="h-full w-full" />
+        {seleccionado && (
+          <Button
+            size="sm"
+            variant="secondary"
+            title="También puedes pulsar Supr"
+            className="absolute right-14 top-2 z-10 border text-destructive hover:text-destructive"
+            onClick={borrarSeleccionado}
+          >
+            <Trash2 />
+            Borrar {etiquetaHerramienta(seleccionado.name)}
+          </Button>
+        )}
         {estado && (
           <span className="pointer-events-none absolute bottom-2 left-2 z-10 rounded-md border bg-card/90 px-2 py-1 text-xs text-muted-foreground">
             {estado}
