@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react"
 import { dispose, init } from "klinecharts"
-import type { Chart } from "klinecharts"
+import type { Chart, DeepPartial, OverlayStyle } from "klinecharts"
 
-import { Trash2 } from "lucide-react"
+import { Settings2, Trash2 } from "lucide-react"
 
+import { AjustesDibujo, type AjustesFibonacci } from "@/components/AjustesDibujo"
 import { AjustesIndicador } from "@/components/AjustesIndicador"
 import { BarraHerramientas, etiquetaHerramienta } from "@/components/BarraHerramientas"
 import { SelectorIndicadores } from "@/components/SelectorIndicadores"
 import { Button } from "@/components/ui/button"
 import { useTema } from "@/contextos/tema"
+import { NIVELES_FIBONACCI, type ExtraFibonacci } from "@/lib/overlays"
 import { api, apiPut, ErrorApi } from "@/lib/api"
 import {
   estilosBase,
@@ -87,11 +89,13 @@ function crearIndicador(
 }
 
 // Del overlay vivo solo persistimos lo que hace falta para reconstruirlo:
-// tipo + puntos anclados a tiempo/precio (+ texto de las anotaciones).
+// tipo + puntos anclados a tiempo/precio (+ extendData: texto de anotaciones
+// o niveles del fibonacci; + styles: color/grosor personalizados).
 type DibujoGuardado = {
   name: string
   points: { timestamp?: number; value?: number }[]
   extendData?: unknown
+  styles?: DeepPartial<OverlayStyle> | null
 }
 
 export function GraficoVelas({
@@ -118,12 +122,17 @@ export function GraficoVelas({
   const [ajustesDe, setAjustesDe] = useState<string | null>(null)
   // Dibujo seleccionado en el lienzo (click sobre él): habilita borrado individual.
   const [seleccionado, setSeleccionado] = useState<{ id: string; name: string } | null>(null)
+  // Ajustes del fibonacci seleccionado; null = diálogo cerrado.
+  const [ajustesFibo, setAjustesFibo] = useState<AjustesFibonacci | null>(null)
 
   // Callbacks comunes a todo overlay (nuevo o restaurado): rastrear selección.
   const eventosOverlay = {
     onSelected: (e: { overlay: { id: string; name: string } }) =>
       setSeleccionado({ id: e.overlay.id, name: e.overlay.name }),
-    onDeselected: () => setSeleccionado(null),
+    onDeselected: () => {
+      setSeleccionado(null)
+      setAjustesFibo(null)
+    },
   }
 
   // Refs para que la inicialización (efecto con deps [simbolo, intervalo])
@@ -242,7 +251,38 @@ export function GraficoVelas({
     if (!seleccionado) return
     chartRef.current?.removeOverlay({ id: seleccionado.id })
     setSeleccionado(null)
+    setAjustesFibo(null)
     setEstado("Dibujo borrado — guarda para consolidar el cambio")
+  }
+
+  // Abre los ajustes del fibonacci seleccionado leyendo el overlay vivo.
+  const abrirAjustesFibo = () => {
+    const chart = chartRef.current
+    if (!chart || !seleccionado) return
+    const vivo = chart.getOverlays({ id: seleccionado.id })[0]
+    if (!vivo) return
+    const linea = (vivo.styles as { line?: { color?: string; size?: number } } | null)?.line
+    setAjustesFibo({
+      niveles: (vivo.extendData as ExtraFibonacci | undefined)?.niveles ?? NIVELES_FIBONACCI,
+      color: linea?.color ?? null,
+      grosor: linea?.size,
+    })
+  }
+
+  const cambiarAjustesFibo = (cambios: AjustesFibonacci) => {
+    const chart = chartRef.current
+    if (!chart || !seleccionado) return
+    // "Auto" se materializa con los defaults del tema de overlay: overrideOverlay
+    // fusiona estilos y no sabría "des-poner" una clave ya escrita.
+    const base = chart.getStyles().overlay.line
+    const color = cambios.color ?? base.color
+    const size = cambios.grosor ?? base.size
+    chart.overrideOverlay({
+      id: seleccionado.id,
+      extendData: { niveles: cambios.niveles },
+      styles: { line: { color, size }, text: { color } },
+    })
+    setAjustesFibo(cambios)
   }
 
   // Supr/Backspace borran el dibujo seleccionado (salvo con el foco en un input).
@@ -309,6 +349,7 @@ export function GraficoVelas({
       name: overlay.name,
       points: overlay.points.map((p) => ({ timestamp: p.timestamp, value: p.value })),
       extendData: overlay.extendData,
+      ...(overlay.styles ? { styles: overlay.styles } : {}),
     }))
     try {
       await apiPut(`/api/dibujos/${encodeURIComponent(simbolo)}`, { overlays, indicadores })
@@ -333,16 +374,24 @@ export function GraficoVelas({
       <div className="relative min-w-0 flex-1">
         <div ref={contenedorRef} className="h-full w-full" />
         {seleccionado && (
-          <Button
-            size="sm"
-            variant="secondary"
-            title="También puedes pulsar Supr"
-            className="absolute right-14 top-2 z-10 border text-destructive hover:text-destructive"
-            onClick={borrarSeleccionado}
-          >
-            <Trash2 />
-            Borrar {etiquetaHerramienta(seleccionado.name)}
-          </Button>
+          <div className="absolute right-14 top-2 z-10 flex gap-1">
+            {seleccionado.name === "fibonacciLine" && (
+              <Button size="sm" variant="secondary" className="border" onClick={abrirAjustesFibo}>
+                <Settings2 />
+                Ajustes
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              title="También puedes pulsar Supr"
+              className="border text-destructive hover:text-destructive"
+              onClick={borrarSeleccionado}
+            >
+              <Trash2 />
+              Borrar {etiquetaHerramienta(seleccionado.name)}
+            </Button>
+          </div>
         )}
         {estado && (
           <span className="pointer-events-none absolute bottom-2 left-2 z-10 rounded-md border bg-card/90 px-2 py-1 text-xs text-muted-foreground">
@@ -366,6 +415,13 @@ export function GraficoVelas({
         lineas={ajustesDe && chartRef.current ? lineasDe(chartRef.current, ajustesDe) : []}
         onCerrar={() => setAjustesDe(null)}
         onCambiar={cambiarEstilo}
+      />
+
+      <AjustesDibujo
+        abierto={ajustesFibo !== null}
+        ajustes={ajustesFibo}
+        onCerrar={() => setAjustesFibo(null)}
+        onCambiar={cambiarAjustesFibo}
       />
     </div>
   )

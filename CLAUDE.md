@@ -12,6 +12,12 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
   subir de versión es un evento deliberado con prueba de round-trip de los
   dibujos guardados, nunca un `npm update` rutinario. Fork de seguridad del
   repo upstream en la cuenta de GitHub del usuario.
+- Overlays propios en `web/src/lib/overlays/` (vendorizados Apache-2.0 de
+  @klinecharts/pro y react-klinecharts-ui): rect, circle, triangle, measure.
+  `fibonacciLine` SUSTITUYE al incorporado (mismo nombre, deliberado): acotado
+  al ancho de sus dos puntos, niveles ocultables (extendData.niveles) y estilo
+  por dibujo. Sus NOMBRES son parte del contrato de persistencia: renombrarlos
+  rompe dibujos guardados.
 - Dibujos por símbolo (no por símbolo+timeframe): anclados a tiempo+precio,
   el análisis hecho en diario se ve también en semanal. Los indicadores
   activos (nombre + calcParams + panel) se guardan igual: por símbolo, junto

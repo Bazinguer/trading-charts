@@ -4,6 +4,7 @@ import {
   ArrowRight,
   ArrowUp,
   Brush,
+  Circle,
   DollarSign,
   Equal,
   Eraser,
@@ -12,10 +13,13 @@ import {
   MoveHorizontal,
   MoveUpRight,
   MoveVertical,
+  Ruler,
   Save,
   SeparatorVertical,
   Slash,
+  Square,
   Tag,
+  Triangle,
   Type,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
@@ -74,6 +78,22 @@ const GRUPOS: Grupo[] = [
     etiqueta: "Fibonacci",
     Icono: AlignJustify,
     herramientas: [{ name: "fibonacciLine", etiqueta: "Fibonacci", Icono: AlignJustify }],
+  },
+  {
+    id: "formas",
+    etiqueta: "Formas",
+    Icono: Square,
+    herramientas: [
+      { name: "rect", etiqueta: "Rectángulo", Icono: Square },
+      { name: "circle", etiqueta: "Círculo", Icono: Circle },
+      { name: "triangle", etiqueta: "Triángulo", Icono: Triangle },
+    ],
+  },
+  {
+    id: "medicion",
+    etiqueta: "Regla",
+    Icono: Ruler,
+    herramientas: [{ name: "measure", etiqueta: "Regla de medición", Icono: Ruler }],
   },
   {
     id: "anotaciones",
