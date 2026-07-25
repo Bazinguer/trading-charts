@@ -1,8 +1,9 @@
 """Lectura de velas desde los parquet locales, en el formato que espera KLineChart.
 
-Cada vela sale como {timestamp(ms), open, high, low, close, volume}. El
-semanal no se descarga: se agrega desde el diario (semanas lunes-domingo,
-timestamp = lunes de apertura), así solo hay UNA fuente de verdad en disco.
+Cada vela sale como {timestamp(ms), open, high, low, close, volume}. Ni el
+semanal ni el mensual se descargan: se agregan desde el diario (semanas
+lunes-domingo con timestamp = lunes de apertura; meses con timestamp = día 1),
+así solo hay UNA fuente de verdad en disco.
 """
 
 import pandas as pd
@@ -10,7 +11,7 @@ import pandas as pd
 from api import cotizaciones
 from api.datos import ruta_parquet
 
-INTERVALOS = ("1d", "1w")
+INTERVALOS = ("1d", "1w", "1M")
 
 
 def cargar(simbolo: str, intervalo: str) -> list[dict]:
@@ -23,7 +24,9 @@ def cargar(simbolo: str, intervalo: str) -> list[dict]:
 
     df = pd.read_parquet(destino)
     if intervalo == "1w":
-        df = _a_semanal(df)
+        df = _agregar(df, "W-MON", label="left", closed="left")
+    elif intervalo == "1M":
+        df = _agregar(df, "MS")
 
     df = df.rename(columns={"open_time": "timestamp"})
     # as_unit("ms") fija la resolución antes de pasar a entero: pandas 3 ya no
@@ -85,10 +88,10 @@ def total(simbolo: str) -> int:
     return len(pd.read_parquet(ruta_parquet(simbolo), columns=["open_time"]))
 
 
-def _a_semanal(df: pd.DataFrame) -> pd.DataFrame:
+def _agregar(df: pd.DataFrame, regla: str, **kwargs) -> pd.DataFrame:
     agregado = (
         df.set_index("open_time")
-        .resample("W-MON", label="left", closed="left")
+        .resample(regla, **kwargs)
         .agg(
             open=("open", "first"),
             high=("high", "max"),

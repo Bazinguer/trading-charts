@@ -8,7 +8,7 @@ import { api, apiPut, ErrorApi } from "@/lib/api"
 
 // Overlays incorporados de KLineChart que exponemos en la barra de dibujo.
 const HERRAMIENTAS = [
-  { name: "segment", etiqueta: "Línea", Icono: Slash },
+  { name: "segment", etiqueta: "Tendencia", Icono: Slash },
   { name: "horizontalStraightLine", etiqueta: "Horizontal", Icono: Minus },
   { name: "rect", etiqueta: "Rectángulo", Icono: Square },
   { name: "fibonacciLine", etiqueta: "Fibonacci", Icono: AlignJustify },
@@ -16,6 +16,21 @@ const HERRAMIENTAS = [
 ]
 
 type Velas = { timestamp: number; open: number; high: number; low: number; close: number; volume: number }[]
+
+export type Intervalo = "1d" | "1w" | "1M"
+export type TipoGrafico = "velas" | "linea"
+
+// El período le dice a KLineChart cómo formatear fechas en crosshair/tooltip.
+const PERIODOS: Record<Intervalo, { span: number; type: "day" | "month" }> = {
+  "1d": { span: 1, type: "day" },
+  "1w": { span: 7, type: "day" },
+  "1M": { span: 1, type: "month" },
+}
+
+// "linea" pinta el cierre como área; tooltip y crosshair siguen dando OHLC.
+const estiloVelas = (tipo: TipoGrafico) => ({
+  candle: { type: tipo === "linea" ? ("area" as const) : ("candle_solid" as const) },
+})
 
 // Del overlay vivo solo persistimos lo que hace falta para reconstruirlo:
 // tipo + puntos anclados a tiempo/precio (+ texto de las anotaciones).
@@ -25,10 +40,27 @@ type DibujoGuardado = {
   extendData?: unknown
 }
 
-export function GraficoVelas({ simbolo, intervalo }: { simbolo: string; intervalo: "1d" | "1w" }) {
+export function GraficoVelas({
+  simbolo,
+  intervalo,
+  tipo,
+}: {
+  simbolo: string
+  intervalo: Intervalo
+  tipo: TipoGrafico
+}) {
   const contenedorRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<Chart | null>(null)
   const [estado, setEstado] = useState("")
+
+  // Ref para que la inicialización (efecto con deps [simbolo, intervalo])
+  // aplique el tipo vigente sin re-crear el gráfico cuando este cambia.
+  const tipoRef = useRef(tipo)
+  tipoRef.current = tipo
+
+  useEffect(() => {
+    chartRef.current?.setStyles(estiloVelas(tipo))
+  }, [tipo])
 
   useEffect(() => {
     const contenedor = contenedorRef.current
@@ -49,7 +81,8 @@ export function GraficoVelas({ simbolo, intervalo }: { simbolo: string; interval
       if (!chart) return
       chartRef.current = chart
       chart.setSymbol({ ticker: simbolo })
-      chart.setPeriod({ span: intervalo === "1w" ? 7 : 1, type: "day" })
+      chart.setPeriod(PERIODOS[intervalo])
+      chart.setStyles(estiloVelas(tipoRef.current))
       // Servimos todo el histórico de una vez: la primera llamada recibe la
       // serie completa y las siguientes (scroll hacia atrás) nada.
       let servido = false

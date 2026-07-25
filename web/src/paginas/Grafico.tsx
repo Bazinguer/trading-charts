@@ -1,16 +1,38 @@
 import { useEffect, useState } from "react"
-import { ChevronLeft } from "lucide-react"
+import { ChartCandlestick, ChartLine, ChevronLeft } from "lucide-react"
 import { Link, useLocation, useParams } from "react-router-dom"
 
-import { GraficoVelas } from "@/components/GraficoVelas"
+import { GraficoVelas, type Intervalo, type TipoGrafico } from "@/components/GraficoVelas"
 import { Button } from "@/components/ui/button"
 import { api, type ResumenSimbolo } from "@/lib/api"
+
+const INTERVALOS: { valor: Intervalo; etiqueta: string }[] = [
+  { valor: "1d", etiqueta: "1D" },
+  { valor: "1w", etiqueta: "1S" },
+  { valor: "1M", etiqueta: "1M" },
+]
+
+const TIPOS: { valor: TipoGrafico; etiqueta: string; Icono: typeof ChartCandlestick }[] = [
+  { valor: "velas", etiqueta: "Velas", Icono: ChartCandlestick },
+  { valor: "linea", etiqueta: "Línea", Icono: ChartLine },
+]
+
+// Preferencia de visualización global (no es análisis del símbolo → localStorage).
+const CLAVE_TIPO = "tc-tipo-grafico"
 
 export function Grafico() {
   const { simbolo = "BTCUSDT" } = useParams()
   const { state } = useLocation()
-  const [intervalo, setIntervalo] = useState<"1d" | "1w">("1d")
+  const [intervalo, setIntervalo] = useState<Intervalo>("1d")
+  const [tipo, setTipo] = useState<TipoGrafico>(() =>
+    localStorage.getItem(CLAVE_TIPO) === "linea" ? "linea" : "velas",
+  )
   const [nombre, setNombre] = useState<string | null>(null)
+
+  const cambiarTipo = (valor: TipoGrafico) => {
+    setTipo(valor)
+    localStorage.setItem(CLAVE_TIPO, valor)
+  }
 
   const volverA = (state as { from?: string } | null)?.from ?? "/graficos"
   // Patrón DS: el back link nombra el DESTINO, nunca un genérico "Volver".
@@ -47,23 +69,34 @@ export function Grafico() {
           )}
         </h1>
         <div className="flex gap-1">
-          <Button
-            size="sm"
-            variant={intervalo === "1d" ? "default" : "secondary"}
-            onClick={() => setIntervalo("1d")}
-          >
-            1D
-          </Button>
-          <Button
-            size="sm"
-            variant={intervalo === "1w" ? "default" : "secondary"}
-            onClick={() => setIntervalo("1w")}
-          >
-            1S
-          </Button>
+          {INTERVALOS.map((i) => (
+            <Button
+              key={i.valor}
+              size="sm"
+              variant={intervalo === i.valor ? "default" : "secondary"}
+              onClick={() => setIntervalo(i.valor)}
+            >
+              {i.etiqueta}
+            </Button>
+          ))}
+        </div>
+        <div className="h-5 w-px bg-border" />
+        <div className="flex gap-1">
+          {TIPOS.map((t) => (
+            <Button
+              key={t.valor}
+              size="icon-sm"
+              variant={tipo === t.valor ? "default" : "secondary"}
+              title={t.etiqueta}
+              aria-label={t.etiqueta}
+              onClick={() => cambiarTipo(t.valor)}
+            >
+              <t.Icono />
+            </Button>
+          ))}
         </div>
       </div>
-      <GraficoVelas simbolo={simbolo} intervalo={intervalo} />
+      <GraficoVelas simbolo={simbolo} intervalo={intervalo} tipo={tipo} />
     </div>
   )
 }
