@@ -4,10 +4,14 @@
 // librería al crear; solo persistimos los vigentes al guardar el análisis.
 
 // Lo que se persiste por símbolo en dibujos.db, junto a los dibujos.
+// colores/grosor son ajustes opcionales de las líneas ("Auto" = null/ausente,
+// manda el default de la librería).
 export type Indicador = {
   name: string
   calcParams: number[]
   panel: boolean
+  colores?: (string | null)[]
+  grosor?: number
 }
 
 export type EntradaCatalogo = {

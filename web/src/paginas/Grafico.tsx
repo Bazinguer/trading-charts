@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ChartCandlestick, ChartLine, ChevronLeft } from "lucide-react"
+import { ChartCandlestick, ChartLine, ChevronLeft, Grid3x3 } from "lucide-react"
 import { Link, useLocation, useParams } from "react-router-dom"
 
 import { GraficoVelas, type Intervalo, type TipoGrafico } from "@/components/GraficoVelas"
@@ -17,8 +17,9 @@ const TIPOS: { valor: TipoGrafico; etiqueta: string; Icono: typeof ChartCandlest
   { valor: "linea", etiqueta: "Línea", Icono: ChartLine },
 ]
 
-// Preferencia de visualización global (no es análisis del símbolo → localStorage).
+// Preferencias de visualización globales (no son análisis del símbolo → localStorage).
 const CLAVE_TIPO = "tc-tipo-grafico"
+const CLAVE_REJILLA = "tc-rejilla"
 
 export function Grafico() {
   const { simbolo = "BTCUSDT" } = useParams()
@@ -27,11 +28,20 @@ export function Grafico() {
   const [tipo, setTipo] = useState<TipoGrafico>(() =>
     localStorage.getItem(CLAVE_TIPO) === "linea" ? "linea" : "velas",
   )
+  // Rejilla OCULTA por defecto: el lienzo limpio es la norma.
+  const [rejilla, setRejilla] = useState(() => localStorage.getItem(CLAVE_REJILLA) === "1")
   const [nombre, setNombre] = useState<string | null>(null)
 
   const cambiarTipo = (valor: TipoGrafico) => {
     setTipo(valor)
     localStorage.setItem(CLAVE_TIPO, valor)
+  }
+
+  const cambiarRejilla = () => {
+    setRejilla((visible) => {
+      localStorage.setItem(CLAVE_REJILLA, visible ? "0" : "1")
+      return !visible
+    })
   }
 
   const volverA = (state as { from?: string } | null)?.from ?? "/graficos"
@@ -94,11 +104,27 @@ export function Grafico() {
               <t.Icono />
             </Button>
           ))}
+          <Button
+            size="icon-sm"
+            variant={rejilla ? "default" : "secondary"}
+            title="Rejilla"
+            aria-label="Rejilla"
+            aria-pressed={rejilla}
+            onClick={cambiarRejilla}
+          >
+            <Grid3x3 />
+          </Button>
         </div>
       </div>
       {/* key: cambiar de símbolo debe remontar el gráfico y su estado
           (indicadores) desde cero, nunca arrastrar los del símbolo anterior */}
-      <GraficoVelas key={simbolo} simbolo={simbolo} intervalo={intervalo} tipo={tipo} />
+      <GraficoVelas
+        key={simbolo}
+        simbolo={simbolo}
+        intervalo={intervalo}
+        tipo={tipo}
+        rejilla={rejilla}
+      />
     </div>
   )
 }

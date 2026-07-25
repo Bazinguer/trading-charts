@@ -12,9 +12,17 @@ import {
 import { dispose, init } from "klinecharts"
 import type { Chart } from "klinecharts"
 
+import { AjustesIndicador } from "@/components/AjustesIndicador"
 import { SelectorIndicadores } from "@/components/SelectorIndicadores"
 import { Button } from "@/components/ui/button"
+import { useTema } from "@/contextos/tema"
 import { api, apiPut, ErrorApi } from "@/lib/api"
+import {
+  estilosBase,
+  estilosLineas,
+  FEATURE_AJUSTES,
+  FEATURE_QUITAR,
+} from "@/lib/estilosGrafico"
 import type { EntradaCatalogo, Indicador } from "@/lib/indicadores"
 
 // Overlays incorporados de KLineChart que exponemos en la barra de dibujo.
@@ -43,12 +51,36 @@ const estiloVelas = (tipo: TipoGrafico) => ({
   candle: { type: tipo === "linea" ? ("area" as const) : ("candle_solid" as const) },
 })
 
+const plural = (n: number, palabra: string) =>
+  `${n} ${n === 1 ? palabra : palabra + (/[aeiou]$/.test(palabra) ? "s" : "es")}`
+
+// Etiquetas de las líneas de un indicador vivo ("MA10", "DIF"...), derivadas
+// de sus figures: valen de rótulo en ajustes y de conteo para los estilos.
+function lineasDe(chart: Chart, name: string): string[] {
+  const vivo = chart.getIndicators({ name })[0]
+  if (!vivo) return []
+  return vivo.figures
+    .filter((figura) => (figura.type ?? "line") === "line")
+    .map((figura) => (figura.title ?? figura.key).replace(/:\s*$/, ""))
+}
+
+// Re-aplica color/grosor personalizados sobre las líneas del indicador vivo.
+function aplicarEstilosLineas(chart: Chart, ind: Indicador) {
+  if (!ind.colores?.some(Boolean) && !ind.grosor) return
+  const numLineas = lineasDe(chart, ind.name).length
+  if (numLineas === 0) return
+  chart.overrideIndicator({
+    name: ind.name,
+    styles: estilosLineas(chart, ind.colores ?? [], ind.grosor, numLineas),
+  })
+}
+
 // Crea un indicador en el chart y devuelve su estado real (con los calcParams
 // por defecto que ponga la librería si no venían dados). Un indicador por
 // nombre como máximo: así quitar/editar no necesita rastrear paneIds.
 function crearIndicador(
   chart: Chart,
-  entrada: { name: string; panel: boolean; calcParams?: number[] },
+  entrada: { name: string; panel: boolean; calcParams?: number[] } & Partial<Indicador>,
 ): Indicador {
   const creacion = entrada.calcParams?.length
     ? { name: entrada.name, calcParams: entrada.calcParams }
@@ -59,11 +91,15 @@ function crearIndicador(
     chart.createIndicator({ ...creacion, paneId: "candle_pane" }, true)
   }
   const vivo = chart.getIndicators({ name: entrada.name })[0]
-  return {
+  const ind: Indicador = {
     name: entrada.name,
     panel: entrada.panel,
     calcParams: (vivo?.calcParams as number[] | undefined) ?? entrada.calcParams ?? [],
+    ...(entrada.colores ? { colores: entrada.colores } : {}),
+    ...(entrada.grosor ? { grosor: entrada.grosor } : {}),
   }
+  aplicarEstilosLineas(chart, ind)
+  return ind
 }
 
 // Del overlay vivo solo persistimos lo que hace falta para reconstruirlo:
@@ -78,21 +114,34 @@ export function GraficoVelas({
   simbolo,
   intervalo,
   tipo,
+  rejilla,
 }: {
   simbolo: string
   intervalo: Intervalo
   tipo: TipoGrafico
+  rejilla: boolean
 }) {
+  const { claro } = useTema()
+  const tema = claro ? ("claro" as const) : ("oscuro" as const)
   const contenedorRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<Chart | null>(null)
   const [estado, setEstado] = useState("")
   const [indicadores, setIndicadores] = useState<Indicador[]>([])
   const [selectorAbierto, setSelectorAbierto] = useState(false)
+  const [ajustesDe, setAjustesDe] = useState<string | null>(null)
 
-  // Ref para que la inicialización (efecto con deps [simbolo, intervalo])
-  // aplique el tipo vigente sin re-crear el gráfico cuando este cambia.
+  // Refs para que la inicialización (efecto con deps [simbolo, intervalo])
+  // aplique las preferencias vigentes sin re-crear el gráfico cuando cambian.
   const tipoRef = useRef(tipo)
   tipoRef.current = tipo
+  const temaRef = useRef(tema)
+  temaRef.current = tema
+  const rejillaRef = useRef(rejilla)
+  rejillaRef.current = rejilla
+
+  useEffect(() => {
+    chartRef.current?.setStyles(estilosBase(tema, rejilla))
+  }, [tema, rejilla])
 
   // null hasta la primera carga: al reiniciar el chart por cambio de intervalo
   // se re-aplican los indicadores vigentes (aunque no estén guardados), no los
@@ -127,7 +176,17 @@ export function GraficoVelas({
       chartRef.current = chart
       chart.setSymbol({ ticker: simbolo })
       chart.setPeriod(PERIODOS[intervalo])
+      chart.setStyles(estilosBase(temaRef.current, rejillaRef.current))
       chart.setStyles(estiloVelas(tipoRef.current))
+
+      // Rueda (⚙) y quitar (✕) de la leyenda de cada indicador.
+      chart.subscribeAction("onIndicatorTooltipFeatureClick", (data) => {
+        const info = data as { indicator?: { name?: string }; feature?: { id?: string } }
+        const name = info.indicator?.name
+        if (!name) return
+        if (info.feature?.id === FEATURE_QUITAR) quitarIndicador(name)
+        else if (info.feature?.id === FEATURE_AJUSTES) setAjustesDe(name)
+      })
       // Servimos todo el histórico de una vez: la primera llamada recibe la
       // serie completa y las siguientes (scroll hacia atrás) nada.
       let servido = false
@@ -152,8 +211,8 @@ export function GraficoVelas({
       setIndicadores(aplicados)
 
       const partes = []
-      if (overlays.length > 0) partes.push(`${overlays.length} dibujos`)
-      if (aplicados.length > 0) partes.push(`${aplicados.length} indicadores`)
+      if (overlays.length > 0) partes.push(plural(overlays.length, "dibujo"))
+      if (aplicados.length > 0) partes.push(plural(aplicados.length, "indicador"))
       if (partes.length > 0) setEstado(`${partes.join(" y ")} restaurados`)
     }
 
@@ -176,20 +235,47 @@ export function GraficoVelas({
     chart.createOverlay(name)
   }
 
+  // Los handlers leen SIEMPRE de indicadoresRef: también se invocan desde la
+  // suscripción del chart (closure del primer render, estado congelado).
   const anadirIndicador = (entrada: EntradaCatalogo) => {
     const chart = chartRef.current
-    if (!chart || indicadores.some((i) => i.name === entrada.name)) return
-    actualizarIndicadores([...indicadores, crearIndicador(chart, entrada)])
+    const vivos = indicadoresRef.current ?? []
+    if (!chart || vivos.some((i) => i.name === entrada.name)) return
+    actualizarIndicadores([...vivos, crearIndicador(chart, entrada)])
   }
 
   const quitarIndicador = (name: string) => {
     chartRef.current?.removeIndicator({ name })
-    actualizarIndicadores(indicadores.filter((i) => i.name !== name))
+    actualizarIndicadores((indicadoresRef.current ?? []).filter((i) => i.name !== name))
+    setAjustesDe((abierto) => (abierto === name ? null : abierto))
   }
 
   const cambiarParams = (name: string, calcParams: number[]) => {
-    chartRef.current?.overrideIndicator({ name, calcParams })
-    actualizarIndicadores(indicadores.map((i) => (i.name === name ? { ...i, calcParams } : i)))
+    const chart = chartRef.current
+    if (!chart) return
+    chart.overrideIndicator({ name, calcParams })
+    const nuevos = (indicadoresRef.current ?? []).map((i) =>
+      i.name === name ? { ...i, calcParams } : i,
+    )
+    actualizarIndicadores(nuevos)
+    // El número de líneas puede cambiar con los params (p. ej. añadir una MA).
+    const ind = nuevos.find((i) => i.name === name)
+    if (ind) aplicarEstilosLineas(chart, ind)
+  }
+
+  const cambiarEstilo = (name: string, colores: (string | null)[], grosor?: number) => {
+    const chart = chartRef.current
+    if (!chart) return
+    const numLineas = lineasDe(chart, name).length
+    if (numLineas > 0) {
+      chart.overrideIndicator({ name, styles: estilosLineas(chart, colores, grosor, numLineas) })
+    }
+    const coloresLimpios = colores.some(Boolean) ? colores : undefined
+    actualizarIndicadores(
+      (indicadoresRef.current ?? []).map((i) =>
+        i.name === name ? { ...i, colores: coloresLimpios, grosor } : i,
+      ),
+    )
   }
 
   const guardar = async () => {
@@ -202,8 +288,8 @@ export function GraficoVelas({
     }))
     try {
       await apiPut(`/api/dibujos/${encodeURIComponent(simbolo)}`, { overlays, indicadores })
-      const partes = [`${overlays.length} dibujos`]
-      if (indicadores.length > 0) partes.push(`${indicadores.length} indicadores`)
+      const partes = [plural(overlays.length, "dibujo")]
+      if (indicadores.length > 0) partes.push(plural(indicadores.length, "indicador"))
       setEstado(`Guardado: ${partes.join(" y ")}`)
     } catch {
       setEstado("Error al guardar")
@@ -282,6 +368,14 @@ export function GraficoVelas({
         onAnadir={anadirIndicador}
         onQuitar={quitarIndicador}
         onParams={cambiarParams}
+        onAjustes={setAjustesDe}
+      />
+
+      <AjustesIndicador
+        indicador={indicadores.find((i) => i.name === ajustesDe) ?? null}
+        lineas={ajustesDe && chartRef.current ? lineasDe(chartRef.current, ajustesDe) : []}
+        onCerrar={() => setAjustesDe(null)}
+        onCambiar={cambiarEstilo}
       />
     </div>
   )

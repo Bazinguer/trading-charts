@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { X } from "lucide-react"
+import { Settings2, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -27,6 +27,7 @@ export function SelectorIndicadores({
   onAnadir,
   onQuitar,
   onParams,
+  onAjustes,
 }: {
   abierto: boolean
   onAbierto: (abierto: boolean) => void
@@ -34,6 +35,7 @@ export function SelectorIndicadores({
   onAnadir: (entrada: EntradaCatalogo) => void
   onQuitar: (name: string) => void
   onParams: (name: string, calcParams: number[]) => void
+  onAjustes: (name: string) => void
 }) {
   const nombresActivos = new Set(activos.map((a) => a.name))
   const disponibles = CATALOGO.filter((e) => !nombresActivos.has(e.name))
@@ -53,7 +55,13 @@ export function SelectorIndicadores({
         {activos.length > 0 && (
           <div className="flex flex-col gap-1 border-b px-4 py-3">
             {activos.map((a) => (
-              <FilaActivo key={a.name} activo={a} onQuitar={onQuitar} onParams={onParams} />
+              <FilaActivo
+                key={a.name}
+                activo={a}
+                onQuitar={onQuitar}
+                onParams={onParams}
+                onAjustes={onAjustes}
+              />
             ))}
           </div>
         )}
@@ -102,10 +110,12 @@ function FilaActivo({
   activo,
   onQuitar,
   onParams,
+  onAjustes,
 }: {
   activo: Indicador
   onQuitar: (name: string) => void
   onParams: (name: string, calcParams: number[]) => void
+  onAjustes: (name: string) => void
 }) {
   const [texto, setTexto] = useState(activo.calcParams.join(", "))
 
@@ -134,6 +144,16 @@ function FilaActivo({
           className="h-8 w-32 text-xs tabular-nums"
         />
       )}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        title="Ajustes"
+        aria-label={`Ajustes de ${etiquetaDe(activo.name)}`}
+        className="text-muted-foreground hover:text-foreground"
+        onClick={() => onAjustes(activo.name)}
+      >
+        <Settings2 />
+      </Button>
       <Button
         variant="ghost"
         size="icon-sm"
