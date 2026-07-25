@@ -13,7 +13,9 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
   dibujos guardados, nunca un `npm update` rutinario. Fork de seguridad del
   repo upstream en la cuenta de GitHub del usuario.
 - Dibujos por símbolo (no por símbolo+timeframe): anclados a tiempo+precio,
-  el análisis hecho en diario se ve también en semanal.
+  el análisis hecho en diario se ve también en semanal. Los indicadores
+  activos (nombre + calcParams + panel) se guardan igual: por símbolo, junto
+  a los dibujos, con el mismo botón de guardar. Máximo uno por nombre.
 - Datos multi-fuente: velas 1d de Binance (`api/datos.py`, incremental) y de
   Yahoo (`api/datos_yahoo.py`, acciones/índices/ETFs/fondos, OHLC ajustado por
   splits+dividendos — patrón heredado de stocks_lab); todo en parquet con el

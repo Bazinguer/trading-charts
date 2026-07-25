@@ -1,10 +1,21 @@
 import { useEffect, useRef, useState } from "react"
-import { AlignJustify, Eraser, Minus, Save, Slash, Square, Type } from "lucide-react"
+import {
+  AlignJustify,
+  ChartNoAxesCombined,
+  Eraser,
+  Minus,
+  Save,
+  Slash,
+  Square,
+  Type,
+} from "lucide-react"
 import { dispose, init } from "klinecharts"
 import type { Chart } from "klinecharts"
 
+import { SelectorIndicadores } from "@/components/SelectorIndicadores"
 import { Button } from "@/components/ui/button"
 import { api, apiPut, ErrorApi } from "@/lib/api"
+import type { EntradaCatalogo, Indicador } from "@/lib/indicadores"
 
 // Overlays incorporados de KLineChart que exponemos en la barra de dibujo.
 const HERRAMIENTAS = [
@@ -32,6 +43,29 @@ const estiloVelas = (tipo: TipoGrafico) => ({
   candle: { type: tipo === "linea" ? ("area" as const) : ("candle_solid" as const) },
 })
 
+// Crea un indicador en el chart y devuelve su estado real (con los calcParams
+// por defecto que ponga la librería si no venían dados). Un indicador por
+// nombre como máximo: así quitar/editar no necesita rastrear paneIds.
+function crearIndicador(
+  chart: Chart,
+  entrada: { name: string; panel: boolean; calcParams?: number[] },
+): Indicador {
+  const creacion = entrada.calcParams?.length
+    ? { name: entrada.name, calcParams: entrada.calcParams }
+    : { name: entrada.name }
+  if (entrada.panel) {
+    chart.createIndicator(creacion, false)
+  } else {
+    chart.createIndicator({ ...creacion, paneId: "candle_pane" }, true)
+  }
+  const vivo = chart.getIndicators({ name: entrada.name })[0]
+  return {
+    name: entrada.name,
+    panel: entrada.panel,
+    calcParams: (vivo?.calcParams as number[] | undefined) ?? entrada.calcParams ?? [],
+  }
+}
+
 // Del overlay vivo solo persistimos lo que hace falta para reconstruirlo:
 // tipo + puntos anclados a tiempo/precio (+ texto de las anotaciones).
 type DibujoGuardado = {
@@ -52,11 +86,22 @@ export function GraficoVelas({
   const contenedorRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<Chart | null>(null)
   const [estado, setEstado] = useState("")
+  const [indicadores, setIndicadores] = useState<Indicador[]>([])
+  const [selectorAbierto, setSelectorAbierto] = useState(false)
 
   // Ref para que la inicialización (efecto con deps [simbolo, intervalo])
   // aplique el tipo vigente sin re-crear el gráfico cuando este cambia.
   const tipoRef = useRef(tipo)
   tipoRef.current = tipo
+
+  // null hasta la primera carga: al reiniciar el chart por cambio de intervalo
+  // se re-aplican los indicadores vigentes (aunque no estén guardados), no los
+  // del servidor. El cambio de símbolo remonta el componente (key en Grafico).
+  const indicadoresRef = useRef<Indicador[] | null>(null)
+  const actualizarIndicadores = (lista: Indicador[]) => {
+    indicadoresRef.current = lista
+    setIndicadores(lista)
+  }
 
   useEffect(() => {
     chartRef.current?.setStyles(estiloVelas(tipo))
@@ -93,13 +138,23 @@ export function GraficoVelas({
         },
       })
 
-      const { overlays } = await api<{ overlays: DibujoGuardado[] }>(
-        `/api/dibujos/${encodeURIComponent(simbolo)}`,
+      const { overlays, indicadores: guardados } = await api<{
+        overlays: DibujoGuardado[]
+        indicadores: Indicador[]
+      }>(`/api/dibujos/${encodeURIComponent(simbolo)}`)
+      if (cancelado) return
+
+      if (overlays.length > 0) chart.createOverlay(overlays)
+      const aplicados = (indicadoresRef.current ?? guardados).map((ind) =>
+        crearIndicador(chart, ind),
       )
-      if (!cancelado && overlays.length > 0) {
-        chart.createOverlay(overlays)
-        setEstado(`${overlays.length} dibujos restaurados`)
-      }
+      indicadoresRef.current = aplicados
+      setIndicadores(aplicados)
+
+      const partes = []
+      if (overlays.length > 0) partes.push(`${overlays.length} dibujos`)
+      if (aplicados.length > 0) partes.push(`${aplicados.length} indicadores`)
+      if (partes.length > 0) setEstado(`${partes.join(" y ")} restaurados`)
     }
 
     void arrancar()
@@ -121,6 +176,22 @@ export function GraficoVelas({
     chart.createOverlay(name)
   }
 
+  const anadirIndicador = (entrada: EntradaCatalogo) => {
+    const chart = chartRef.current
+    if (!chart || indicadores.some((i) => i.name === entrada.name)) return
+    actualizarIndicadores([...indicadores, crearIndicador(chart, entrada)])
+  }
+
+  const quitarIndicador = (name: string) => {
+    chartRef.current?.removeIndicator({ name })
+    actualizarIndicadores(indicadores.filter((i) => i.name !== name))
+  }
+
+  const cambiarParams = (name: string, calcParams: number[]) => {
+    chartRef.current?.overrideIndicator({ name, calcParams })
+    actualizarIndicadores(indicadores.map((i) => (i.name === name ? { ...i, calcParams } : i)))
+  }
+
   const guardar = async () => {
     const chart = chartRef.current
     if (!chart) return
@@ -130,8 +201,10 @@ export function GraficoVelas({
       extendData: overlay.extendData,
     }))
     try {
-      await apiPut(`/api/dibujos/${encodeURIComponent(simbolo)}`, { overlays })
-      setEstado(`${overlays.length} dibujos guardados`)
+      await apiPut(`/api/dibujos/${encodeURIComponent(simbolo)}`, { overlays, indicadores })
+      const partes = [`${overlays.length} dibujos`]
+      if (indicadores.length > 0) partes.push(`${indicadores.length} indicadores`)
+      setEstado(`Guardado: ${partes.join(" y ")}`)
     } catch {
       setEstado("Error al guardar")
     }
@@ -163,8 +236,19 @@ export function GraficoVelas({
         <Button
           variant="ghost"
           size="icon-sm"
-          title="Guardar dibujos"
-          aria-label="Guardar dibujos"
+          title="Indicadores"
+          aria-label="Indicadores"
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => setSelectorAbierto(true)}
+        >
+          <ChartNoAxesCombined />
+        </Button>
+        <div className="my-1 h-px w-5 shrink-0 bg-border" />
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          title="Guardar análisis"
+          aria-label="Guardar análisis"
           className="text-primary hover:text-primary"
           onClick={() => void guardar()}
         >
@@ -190,6 +274,15 @@ export function GraficoVelas({
           </span>
         )}
       </div>
+
+      <SelectorIndicadores
+        abierto={selectorAbierto}
+        onAbierto={setSelectorAbierto}
+        activos={indicadores}
+        onAnadir={anadirIndicador}
+        onQuitar={quitarIndicador}
+        onParams={cambiarParams}
+      />
     </div>
   )
 }

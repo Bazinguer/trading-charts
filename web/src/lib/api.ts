@@ -84,5 +84,6 @@ export interface AnalisisGuardado {
   simbolo: string
   nombre: string | null
   dibujos: number
+  indicadores: number
   actualizado: string
 }

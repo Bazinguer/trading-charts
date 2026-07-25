@@ -96,7 +96,9 @@ export function Grafico() {
           ))}
         </div>
       </div>
-      <GraficoVelas simbolo={simbolo} intervalo={intervalo} tipo={tipo} />
+      {/* key: cambiar de símbolo debe remontar el gráfico y su estado
+          (indicadores) desde cero, nunca arrastrar los del símbolo anterior */}
+      <GraficoVelas key={simbolo} simbolo={simbolo} intervalo={intervalo} tipo={tipo} />
     </div>
   )
 }

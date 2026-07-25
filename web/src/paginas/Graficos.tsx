@@ -66,6 +66,7 @@ export function Graficos() {
                 <TableHead>Símbolo</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead className="text-right">Dibujos</TableHead>
+                <TableHead className="text-right">Indicadores</TableHead>
                 <TableHead className="text-right">Última modificación</TableHead>
               </TableRow>
             </TableHeader>
@@ -83,6 +84,7 @@ export function Graficos() {
                   <TableCell className="font-medium">{a.simbolo}</TableCell>
                   <TableCell className="text-muted-foreground">{a.nombre ?? "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">{a.dibujos}</TableCell>
+                  <TableCell className="text-right tabular-nums">{a.indicadores}</TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
                     {fechaHora(a.actualizado)}
                   </TableCell>

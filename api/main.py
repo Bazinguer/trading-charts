@@ -23,6 +23,7 @@ protegido = APIRouter(prefix="/api", dependencies=[Depends(sesion.sesion_requeri
 
 class DibujosEntrada(BaseModel):
     overlays: list[dict]
+    indicadores: list[dict] = []
 
 
 class ListaEntrada(BaseModel):
@@ -92,13 +93,13 @@ def obtener_analisis() -> list[dict]:
 
 @protegido.get("/dibujos/{simbolo}")
 def obtener_dibujos(simbolo: str) -> dict:
-    return {"overlays": dibujos.obtener(simbolo)}
+    return dibujos.obtener(simbolo)
 
 
 @protegido.put("/dibujos/{simbolo}")
 def guardar_dibujos(simbolo: str, entrada: DibujosEntrada) -> dict:
-    dibujos.guardar(simbolo, entrada.overlays)
-    return {"guardados": len(entrada.overlays)}
+    dibujos.guardar(simbolo, entrada.overlays, entrada.indicadores)
+    return {"dibujos": len(entrada.overlays), "indicadores": len(entrada.indicadores)}
 
 
 @protegido.get("/listas")
