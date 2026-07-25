@@ -1,20 +1,10 @@
 import { useEffect, useRef, useState } from "react"
-import {
-  AlignJustify,
-  ChartNoAxesCombined,
-  Eraser,
-  Minus,
-  Save,
-  Slash,
-  Square,
-  Type,
-} from "lucide-react"
 import { dispose, init } from "klinecharts"
 import type { Chart } from "klinecharts"
 
 import { AjustesIndicador } from "@/components/AjustesIndicador"
+import { BarraHerramientas } from "@/components/BarraHerramientas"
 import { SelectorIndicadores } from "@/components/SelectorIndicadores"
-import { Button } from "@/components/ui/button"
 import { useTema } from "@/contextos/tema"
 import { api, apiPut, ErrorApi } from "@/lib/api"
 import {
@@ -24,15 +14,6 @@ import {
   FEATURE_QUITAR,
 } from "@/lib/estilosGrafico"
 import type { EntradaCatalogo, Indicador } from "@/lib/indicadores"
-
-// Overlays incorporados de KLineChart que exponemos en la barra de dibujo.
-const HERRAMIENTAS = [
-  { name: "segment", etiqueta: "Tendencia", Icono: Slash },
-  { name: "horizontalStraightLine", etiqueta: "Horizontal", Icono: Minus },
-  { name: "rect", etiqueta: "Rectángulo", Icono: Square },
-  { name: "fibonacciLine", etiqueta: "Fibonacci", Icono: AlignJustify },
-  { name: "simpleAnnotation", etiqueta: "Texto", Icono: Type },
-]
 
 type Velas = { timestamp: number; open: number; high: number; low: number; close: number; volume: number }[]
 
@@ -115,11 +96,15 @@ export function GraficoVelas({
   intervalo,
   tipo,
   rejilla,
+  indicadoresAbierto,
+  onIndicadoresAbierto,
 }: {
   simbolo: string
   intervalo: Intervalo
   tipo: TipoGrafico
   rejilla: boolean
+  indicadoresAbierto: boolean
+  onIndicadoresAbierto: (abierto: boolean) => void
 }) {
   const { claro } = useTema()
   const tema = claro ? ("claro" as const) : ("oscuro" as const)
@@ -127,7 +112,6 @@ export function GraficoVelas({
   const chartRef = useRef<Chart | null>(null)
   const [estado, setEstado] = useState("")
   const [indicadores, setIndicadores] = useState<Indicador[]>([])
-  const [selectorAbierto, setSelectorAbierto] = useState(false)
   const [ajustesDe, setAjustesDe] = useState<string | null>(null)
 
   // Refs para que la inicialización (efecto con deps [simbolo, intervalo])
@@ -179,13 +163,16 @@ export function GraficoVelas({
       chart.setStyles(estilosBase(temaRef.current, rejillaRef.current))
       chart.setStyles(estiloVelas(tipoRef.current))
 
-      // Rueda (⚙) y quitar (✕) de la leyenda de cada indicador.
+      // Rueda (⚙) y quitar (✕) de la leyenda de cada indicador. Diferido con
+      // setTimeout: si el diálogo monta DURANTE el mousedown del canvas, ese
+      // mismo evento llega al document y Radix lo trata como click fuera
+      // (cierre inmediato); además, mutar paneles en pleno dispatch es frágil.
       chart.subscribeAction("onIndicatorTooltipFeatureClick", (data) => {
         const info = data as { indicator?: { name?: string }; feature?: { id?: string } }
         const name = info.indicator?.name
         if (!name) return
-        if (info.feature?.id === FEATURE_QUITAR) quitarIndicador(name)
-        else if (info.feature?.id === FEATURE_AJUSTES) setAjustesDe(name)
+        if (info.feature?.id === FEATURE_QUITAR) setTimeout(() => quitarIndicador(name), 0)
+        else if (info.feature?.id === FEATURE_AJUSTES) setTimeout(() => setAjustesDe(name), 0)
       })
       // Servimos todo el histórico de una vez: la primera llamada recibe la
       // serie completa y las siguientes (scroll hacia atrás) nada.
@@ -304,53 +291,7 @@ export function GraficoVelas({
   return (
     <div className="flex min-h-0 flex-1 gap-2">
       {/* Barra de herramientas vertical, pegada al borde izquierdo del lienzo */}
-      <div className="flex w-10 shrink-0 flex-col items-center gap-0.5 rounded-[10px] border bg-card p-1">
-        {HERRAMIENTAS.map((h) => (
-          <Button
-            key={h.name}
-            variant="ghost"
-            size="icon-sm"
-            title={h.etiqueta}
-            aria-label={h.etiqueta}
-            className="text-muted-foreground hover:text-foreground"
-            onClick={() => dibujar(h.name)}
-          >
-            <h.Icono />
-          </Button>
-        ))}
-        <div className="my-1 h-px w-5 shrink-0 bg-border" />
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title="Indicadores"
-          aria-label="Indicadores"
-          className="text-muted-foreground hover:text-foreground"
-          onClick={() => setSelectorAbierto(true)}
-        >
-          <ChartNoAxesCombined />
-        </Button>
-        <div className="my-1 h-px w-5 shrink-0 bg-border" />
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title="Guardar análisis"
-          aria-label="Guardar análisis"
-          className="text-primary hover:text-primary"
-          onClick={() => void guardar()}
-        >
-          <Save />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title="Limpiar dibujos (sin guardar)"
-          aria-label="Limpiar dibujos"
-          className="text-muted-foreground hover:text-destructive"
-          onClick={limpiar}
-        >
-          <Eraser />
-        </Button>
-      </div>
+      <BarraHerramientas onDibujar={dibujar} onGuardar={() => void guardar()} onLimpiar={limpiar} />
 
       <div className="relative min-w-0 flex-1">
         <div ref={contenedorRef} className="h-full w-full" />
@@ -362,8 +303,8 @@ export function GraficoVelas({
       </div>
 
       <SelectorIndicadores
-        abierto={selectorAbierto}
-        onAbierto={setSelectorAbierto}
+        abierto={indicadoresAbierto}
+        onAbierto={onIndicadoresAbierto}
         activos={indicadores}
         onAnadir={anadirIndicador}
         onQuitar={quitarIndicador}

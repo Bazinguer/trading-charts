@@ -37,12 +37,19 @@ export const PALETA_LINEAS = [
   "#94A3B8",
 ]
 
+// position "middle": tras el título (ancho FIJO), nunca tras los valores de la
+// leyenda, que cambian de ancho con el crosshair y convertirían el icono en un
+// blanco móvil imposible de clicar. Padding generoso = más zona de click.
 function feature(id: string, code: string, tema: Tema) {
   return {
     id,
-    position: "right" as const,
+    position: "middle" as const,
     marginLeft: 6,
-    size: 12,
+    paddingLeft: 3,
+    paddingRight: 3,
+    paddingTop: 3,
+    paddingBottom: 3,
+    size: 14,
     color: TOKENS[tema].icono,
     activeColor: TOKENS[tema].texto,
     type: "icon_font" as const,

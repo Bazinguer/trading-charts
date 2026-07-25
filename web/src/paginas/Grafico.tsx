@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react"
-import { ChartCandlestick, ChartLine, ChevronLeft, Grid3x3 } from "lucide-react"
+import {
+  ChartCandlestick,
+  ChartLine,
+  ChartNoAxesCombined,
+  ChevronLeft,
+  Grid3x3,
+} from "lucide-react"
 import { Link, useLocation, useParams } from "react-router-dom"
 
 import { GraficoVelas, type Intervalo, type TipoGrafico } from "@/components/GraficoVelas"
@@ -30,6 +36,7 @@ export function Grafico() {
   )
   // Rejilla OCULTA por defecto: el lienzo limpio es la norma.
   const [rejilla, setRejilla] = useState(() => localStorage.getItem(CLAVE_REJILLA) === "1")
+  const [indicadoresAbierto, setIndicadoresAbierto] = useState(false)
   const [nombre, setNombre] = useState<string | null>(null)
 
   const cambiarTipo = (valor: TipoGrafico) => {
@@ -115,6 +122,11 @@ export function Grafico() {
             <Grid3x3 />
           </Button>
         </div>
+        <div className="h-5 w-px bg-border" />
+        <Button size="sm" variant="secondary" onClick={() => setIndicadoresAbierto(true)}>
+          <ChartNoAxesCombined />
+          Indicadores
+        </Button>
       </div>
       {/* key: cambiar de símbolo debe remontar el gráfico y su estado
           (indicadores) desde cero, nunca arrastrar los del símbolo anterior */}
@@ -124,6 +136,8 @@ export function Grafico() {
         intervalo={intervalo}
         tipo={tipo}
         rejilla={rejilla}
+        indicadoresAbierto={indicadoresAbierto}
+        onIndicadoresAbierto={setIndicadoresAbierto}
       />
     </div>
   )
