@@ -42,7 +42,7 @@ export function AjustesIndicador({
 
   return (
     <Dialog open onOpenChange={(abierto) => !abierto && onCerrar()}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-base">{etiquetaDe(indicador.name)}</DialogTitle>
           <DialogDescription>

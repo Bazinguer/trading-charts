@@ -1,7 +1,9 @@
 // Estilos de KLineChart dependientes del tema y de las preferencias de
 // visualización. Colores alineados con docs/design/BRAND.md.
 
-import type { Chart, DeepPartial, Styles } from "klinecharts"
+import type { Chart, DeepPartial, OverlayStyle, Styles } from "klinecharts"
+
+import { RELLENO_FORMAS } from "@/lib/overlays"
 
 export type Tema = "oscuro" | "claro"
 
@@ -78,6 +80,44 @@ export function estilosBase(tema: Tema, rejilla: boolean): DeepPartial<Styles> {
         features: [feature(FEATURE_AJUSTES, "⚙", tema), feature(FEATURE_QUITAR, "✕", tema)],
       },
     },
+  }
+}
+
+export type EstiloLinea = "continua" | "discontinua" | "punteada"
+
+function hexARgba(hex: string, alfa: number): string {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alfa})`
+}
+
+// Estilos de un dibujo (overlay) a partir de los ajustes básicos. Se escriben
+// las familias de figuras a la vez (línea, polígono, círculo, texto) para que
+// el mismo diálogo valga para cualquier herramienta; "Auto" materializa los
+// defaults porque overrideOverlay fusiona y no sabría "des-poner" una clave.
+export function estilosDibujo(
+  chart: Chart,
+  color: string | null,
+  grosor: number | undefined,
+  estilo: EstiloLinea,
+): DeepPartial<OverlayStyle> {
+  const base = chart.getStyles().overlay
+  const colorFinal = color ?? base.line.color
+  const size = grosor ?? base.line.size
+  const style = estilo === "continua" ? ("solid" as const) : ("dashed" as const)
+  const dashedValue =
+    estilo === "punteada" ? [2, 3] : estilo === "discontinua" ? [8, 5] : base.line.dashedValue
+  const borde = {
+    borderColor: colorFinal,
+    borderSize: size,
+    borderStyle: style,
+    borderDashedValue: dashedValue,
+    color: color ? hexARgba(color, 0.15) : RELLENO_FORMAS,
+  }
+  return {
+    line: { color: colorFinal, size, style, dashedValue },
+    polygon: borde,
+    circle: borde,
+    text: { color: colorFinal },
   }
 }
 

@@ -6,7 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { PALETA_LINEAS } from "@/lib/estilosGrafico"
+import { PALETA_LINEAS, type EstiloLinea } from "@/lib/estilosGrafico"
 import { NIVELES_FIBONACCI } from "@/lib/overlays"
 import { cn } from "@/lib/utils"
 
@@ -17,59 +17,76 @@ const GROSORES: { valor: number | undefined; etiqueta: string }[] = [
   { valor: 3, etiqueta: "3 px" },
 ]
 
+const ESTILOS: { valor: EstiloLinea; etiqueta: string; muestra: string }[] = [
+  { valor: "continua", etiqueta: "Continua", muestra: "───────" },
+  { valor: "discontinua", etiqueta: "Discontinua", muestra: "── ── ──" },
+  { valor: "punteada", etiqueta: "Punteada", muestra: "‥‥‥‥‥" },
+]
+
 const etiquetaNivel = (nivel: number) => `${parseFloat((nivel * 100).toFixed(1))}%`
 
-export type AjustesFibonacci = { niveles: number[]; color: string | null; grosor?: number }
+export type AjustesForma = {
+  niveles?: number[] // solo Fibonacci
+  color: string | null
+  grosor?: number
+  estilo: EstiloLinea
+}
 
-// Ajustes del dibujo de Fibonacci seleccionado: niveles visibles, color y
-// grosor. Los cambios se aplican al momento y se guardan con el análisis.
+// Ajustes básicos del dibujo seleccionado: color, grosor y estilo de línea;
+// el Fibonacci añade sus niveles visibles. Cambios en vivo, guardados con el
+// análisis.
 export function AjustesDibujo({
   abierto,
+  titulo,
   ajustes,
   onCerrar,
   onCambiar,
 }: {
   abierto: boolean
-  ajustes: AjustesFibonacci | null
+  titulo: string
+  ajustes: AjustesForma | null
   onCerrar: () => void
-  onCambiar: (cambios: AjustesFibonacci) => void
+  onCambiar: (cambios: AjustesForma) => void
 }) {
   if (!abierto || !ajustes) return null
 
   const alternarNivel = (nivel: number) => {
+    if (!ajustes.niveles) return
     const visibles = ajustes.niveles.includes(nivel)
       ? ajustes.niveles.filter((n) => n !== nivel)
-      : NIVELES_FIBONACCI.filter((n) => n === nivel || ajustes.niveles.includes(n))
+      : NIVELES_FIBONACCI.filter((n) => n === nivel || ajustes.niveles?.includes(n))
     if (visibles.length === 0) return
     onCambiar({ ...ajustes, niveles: visibles })
   }
 
   return (
     <Dialog open onOpenChange={(sigue) => !sigue && onCerrar()}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-base">Fibonacci</DialogTitle>
+          <DialogTitle className="text-base">{titulo}</DialogTitle>
           <DialogDescription>
             Los cambios se aplican al momento y se guardan con el análisis.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-start gap-2">
-          <span className="w-24 shrink-0 pt-1 text-sm text-muted-foreground">Niveles</span>
-          <div className="flex flex-wrap gap-1">
-            {NIVELES_FIBONACCI.map((nivel) => (
-              <Button
-                key={nivel}
-                size="sm"
-                variant={ajustes.niveles.includes(nivel) ? "default" : "secondary"}
-                className="h-7 px-2 text-xs tabular-nums"
-                onClick={() => alternarNivel(nivel)}
-              >
-                {etiquetaNivel(nivel)}
-              </Button>
-            ))}
+        {ajustes.niveles && (
+          <div className="flex items-start gap-2">
+            <span className="w-24 shrink-0 pt-1 text-sm text-muted-foreground">Niveles</span>
+            <div className="flex flex-wrap gap-1">
+              {NIVELES_FIBONACCI.map((nivel) => (
+                <Button
+                  key={nivel}
+                  size="sm"
+                  variant={ajustes.niveles?.includes(nivel) ? "default" : "secondary"}
+                  className="h-7 px-2 text-xs tabular-nums"
+                  onClick={() => alternarNivel(nivel)}
+                >
+                  {etiquetaNivel(nivel)}
+                </Button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex items-center gap-2">
           <span className="w-24 shrink-0 text-sm text-muted-foreground">Color</span>
@@ -112,6 +129,25 @@ export function AjustesDibujo({
                 onClick={() => onCambiar({ ...ajustes, grosor: g.valor })}
               >
                 {g.etiqueta}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="w-24 shrink-0 text-sm text-muted-foreground">Estilo</span>
+          <div className="flex gap-1">
+            {ESTILOS.map((e) => (
+              <Button
+                key={e.valor}
+                size="sm"
+                variant={ajustes.estilo === e.valor ? "default" : "secondary"}
+                title={e.etiqueta}
+                aria-label={e.etiqueta}
+                className="h-7 px-2 font-mono text-xs"
+                onClick={() => onCambiar({ ...ajustes, estilo: e.valor })}
+              >
+                {e.muestra}
               </Button>
             ))}
           </div>

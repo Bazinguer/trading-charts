@@ -18,7 +18,7 @@
 import type { Coordinate, OverlayTemplate } from "klinecharts"
 
 // Relleno al 15% del primary del DS (#38BDF8) en vez del azul de klinecharts.
-const RELLENO = "rgba(56, 189, 248, 0.15)"
+export const RELLENO = "rgba(56, 189, 248, 0.15)"
 
 function distancia(a: Coordinate, b: Coordinate): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)

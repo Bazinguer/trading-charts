@@ -4,7 +4,7 @@ import type { Chart, DeepPartial, OverlayStyle } from "klinecharts"
 
 import { Settings2, Trash2 } from "lucide-react"
 
-import { AjustesDibujo, type AjustesFibonacci } from "@/components/AjustesDibujo"
+import { AjustesDibujo, type AjustesForma } from "@/components/AjustesDibujo"
 import { AjustesIndicador } from "@/components/AjustesIndicador"
 import { BarraHerramientas, etiquetaHerramienta } from "@/components/BarraHerramientas"
 import { SelectorIndicadores } from "@/components/SelectorIndicadores"
@@ -14,9 +14,11 @@ import { NIVELES_FIBONACCI, type ExtraFibonacci } from "@/lib/overlays"
 import { api, apiPut, ErrorApi } from "@/lib/api"
 import {
   estilosBase,
+  estilosDibujo,
   estilosLineas,
   FEATURE_AJUSTES,
   FEATURE_QUITAR,
+  type EstiloLinea,
 } from "@/lib/estilosGrafico"
 import type { EntradaCatalogo, Indicador } from "@/lib/indicadores"
 
@@ -122,8 +124,8 @@ export function GraficoVelas({
   const [ajustesDe, setAjustesDe] = useState<string | null>(null)
   // Dibujo seleccionado en el lienzo (click sobre él): habilita borrado individual.
   const [seleccionado, setSeleccionado] = useState<{ id: string; name: string } | null>(null)
-  // Ajustes del fibonacci seleccionado; null = diálogo cerrado.
-  const [ajustesFibo, setAjustesFibo] = useState<AjustesFibonacci | null>(null)
+  // Ajustes del dibujo seleccionado; null = diálogo cerrado.
+  const [ajustesDibujo, setAjustesDibujo] = useState<AjustesForma | null>(null)
 
   // Callbacks comunes a todo overlay (nuevo o restaurado): rastrear selección.
   const eventosOverlay = {
@@ -131,7 +133,7 @@ export function GraficoVelas({
       setSeleccionado({ id: e.overlay.id, name: e.overlay.name }),
     onDeselected: () => {
       setSeleccionado(null)
-      setAjustesFibo(null)
+      setAjustesDibujo(null)
     },
   }
 
@@ -251,38 +253,48 @@ export function GraficoVelas({
     if (!seleccionado) return
     chartRef.current?.removeOverlay({ id: seleccionado.id })
     setSeleccionado(null)
-    setAjustesFibo(null)
+    setAjustesDibujo(null)
     setEstado("Dibujo borrado — guarda para consolidar el cambio")
   }
 
-  // Abre los ajustes del fibonacci seleccionado leyendo el overlay vivo.
-  const abrirAjustesFibo = () => {
+  // Abre los ajustes del dibujo seleccionado leyendo el overlay vivo.
+  const abrirAjustesDibujo = () => {
     const chart = chartRef.current
     if (!chart || !seleccionado) return
     const vivo = chart.getOverlays({ id: seleccionado.id })[0]
     if (!vivo) return
-    const linea = (vivo.styles as { line?: { color?: string; size?: number } } | null)?.line
-    setAjustesFibo({
-      niveles: (vivo.extendData as ExtraFibonacci | undefined)?.niveles ?? NIVELES_FIBONACCI,
+    const linea = (
+      vivo.styles as {
+        line?: { color?: string; size?: number; style?: string; dashedValue?: number[] }
+      } | null
+    )?.line
+    const estilo: EstiloLinea =
+      linea?.style === "dashed"
+        ? (linea.dashedValue?.[0] ?? 8) <= 3
+          ? "punteada"
+          : "discontinua"
+        : "continua"
+    setAjustesDibujo({
+      // Solo el fibonacci tiene niveles; su presencia activa esa fila del diálogo.
+      ...(seleccionado.name === "fibonacciLine"
+        ? { niveles: (vivo.extendData as ExtraFibonacci | undefined)?.niveles ?? NIVELES_FIBONACCI }
+        : {}),
       color: linea?.color ?? null,
       grosor: linea?.size,
+      estilo,
     })
   }
 
-  const cambiarAjustesFibo = (cambios: AjustesFibonacci) => {
+  const cambiarAjustesDibujo = (cambios: AjustesForma) => {
     const chart = chartRef.current
     if (!chart || !seleccionado) return
-    // "Auto" se materializa con los defaults del tema de overlay: overrideOverlay
-    // fusiona estilos y no sabría "des-poner" una clave ya escrita.
-    const base = chart.getStyles().overlay.line
-    const color = cambios.color ?? base.color
-    const size = cambios.grosor ?? base.size
     chart.overrideOverlay({
       id: seleccionado.id,
-      extendData: { niveles: cambios.niveles },
-      styles: { line: { color, size }, text: { color } },
+      // extendData solo en el fibo: en anotaciones/etiquetas guarda su TEXTO.
+      ...(cambios.niveles ? { extendData: { niveles: cambios.niveles } } : {}),
+      styles: estilosDibujo(chart, cambios.color, cambios.grosor, cambios.estilo),
     })
-    setAjustesFibo(cambios)
+    setAjustesDibujo(cambios)
   }
 
   // Supr/Backspace borran el dibujo seleccionado (salvo con el foco en un input).
@@ -375,8 +387,9 @@ export function GraficoVelas({
         <div ref={contenedorRef} className="h-full w-full" />
         {seleccionado && (
           <div className="absolute right-14 top-2 z-10 flex gap-1">
-            {seleccionado.name === "fibonacciLine" && (
-              <Button size="sm" variant="secondary" className="border" onClick={abrirAjustesFibo}>
+            {/* La regla no se ajusta: su verde/rojo indica dirección, es semántico */}
+            {seleccionado.name !== "measure" && (
+              <Button size="sm" variant="secondary" className="border" onClick={abrirAjustesDibujo}>
                 <Settings2 />
                 Ajustes
               </Button>
@@ -418,10 +431,11 @@ export function GraficoVelas({
       />
 
       <AjustesDibujo
-        abierto={ajustesFibo !== null}
-        ajustes={ajustesFibo}
-        onCerrar={() => setAjustesFibo(null)}
-        onCambiar={cambiarAjustesFibo}
+        abierto={ajustesDibujo !== null}
+        titulo={seleccionado ? etiquetaHerramienta(seleccionado.name) : ""}
+        ajustes={ajustesDibujo}
+        onCerrar={() => setAjustesDibujo(null)}
+        onCambiar={cambiarAjustesDibujo}
       />
     </div>
   )
