@@ -12,4 +12,8 @@ web/dist/
 
 # Entorno
 .env
+.env.dokploy
 .playwright-mcp/
+
+# Backups de producción (make -f Makefile.dev backup-prd)
+backups/

@@ -10,6 +10,7 @@ variables ya definidas; en producción mandan las del contenedor):
     CHARTS_USUARIO    nombre de usuario
     CHARTS_PASSWORD   contraseña
     CHARTS_SECRET     clave de firma de la cookie
+    CHARTS_HTTPS      "1" en producción: cookie con flag Secure (solo HTTPS)
 """
 
 import hashlib
@@ -93,6 +94,7 @@ def login(datos: Credenciales, respuesta: Response) -> dict:
         max_age=DURACION,
         httponly=True,
         samesite="lax",
+        secure=os.environ.get("CHARTS_HTTPS") == "1",
     )
     return {"usuario": datos.usuario}
 

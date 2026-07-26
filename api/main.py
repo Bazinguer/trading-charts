@@ -1,19 +1,33 @@
 """API de charts: velas, dibujos, listas de seguimiento y catálogo de símbolos.
 
 Desarrollo: `make api` (uvicorn en :8010) + `make web` (Vite con proxy /api).
-Todo requiere cookie de sesión (ver api/sesion.py) salvo login/logout/sesion.
+En producción no hay Vite: FastAPI sirve también el build de la SPA (web/dist)
+con fallback a index.html — un solo contenedor, un solo origen (patrón del
+dashboard de trading-bot). Todo requiere cookie de sesión (ver api/sesion.py)
+salvo login/logout/sesion y /api/salud (healthcheck del contenedor).
 """
 
+from pathlib import Path
 from typing import Literal
 
 import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from api import busqueda, datos, datos_yahoo, dibujos, listas, sesion, simbolos, velas
 
+RUTA_WEB = Path(__file__).resolve().parent.parent / "web" / "dist"
+
 app = FastAPI(title="charts", docs_url=None, redoc_url=None)
 app.include_router(sesion.router)
+
+
+@app.get("/api/salud")
+def salud() -> dict:
+    return {"ok": True}
+
 
 protegido = APIRouter(prefix="/api", dependencies=[Depends(sesion.sesion_requerida)])
 
@@ -131,3 +145,16 @@ def reemplazar_simbolos(lista_id: int, entrada: SimbolosEntrada) -> dict:
 
 
 app.include_router(protegido)
+
+# El catch-all va DESPUÉS de los routers: si no, se comería /api/*. Solo en
+# producción (en dev no existe web/dist y sirve Vite con su proxy).
+if RUTA_WEB.exists():
+    app.mount("/assets", StaticFiles(directory=RUTA_WEB / "assets"), name="assets")
+
+    @app.get("/{ruta:path}", include_in_schema=False)
+    async def spa(ruta: str) -> FileResponse:
+        candidato = RUTA_WEB / ruta
+        if ruta and candidato.is_file() and candidato.resolve().is_relative_to(RUTA_WEB):
+            return FileResponse(candidato)
+        # Fallback SPA: los deep links (/grafico/BTCUSDT) sirven index.html
+        return FileResponse(RUTA_WEB / "index.html")

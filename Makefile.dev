@@ -1,0 +1,32 @@
+# Comandos que tocan PRODUCCIÓN desde la máquina local, vía SSH (doctrina
+# anime-log: lo destructivo o lo que toca PRD jamás vive en el Makefile
+# normal). Uso: make -f Makefile.dev <target>
+#
+# Requisitos: alias SSH del VPS en ~/.ssh/config (el mismo que anime-log) y
+# el nombre del contenedor que genera Dokploy — averiguarlo tras el primer
+# deploy con: ssh $(PRD_SSH) "docker ps --format '{{.Names}}'"
+
+PRD_SSH := ssh-bazinguer-vps
+# Dokploy genera <proyecto>-<hash6>-charts-1; RELLENAR tras el primer deploy:
+PRD_CONTENEDOR := trading-charts-XXXXXX-charts-1
+BACKUP_DIR := backups
+
+.PHONY: backup-prd restore-prd
+
+backup-prd:  ## Copia consistente (sqlite .backup en caliente) de dibujos.db de PRD a backups/
+	@mkdir -p $(BACKUP_DIR)
+	@DESTINO="$(BACKUP_DIR)/dibujos_prd_$$(date +%Y%m%d_%H%M%S).db"; \
+	ssh $(PRD_SSH) "docker exec $(PRD_CONTENEDOR) python3 -c 'import sqlite3; origen = sqlite3.connect(\"/app/data/dibujos.db\"); destino = sqlite3.connect(\"/tmp/respaldo.db\"); origen.backup(destino); destino.close()'" \
+		&& ssh $(PRD_SSH) "docker exec $(PRD_CONTENEDOR) cat /tmp/respaldo.db" > "$$DESTINO" \
+		&& ssh $(PRD_SSH) "docker exec $(PRD_CONTENEDOR) rm /tmp/respaldo.db" \
+		&& echo "✔ Backup guardado en $$DESTINO ($$(du -h $$DESTINO | cut -f1))"
+
+restore-prd:  ## Restaura un backup local EN PRODUCCIÓN. Uso: make -f Makefile.dev restore-prd FICHERO=backups/dibujos_prd_XXX.db
+	@test -f "$(FICHERO)" || { echo "Falta FICHERO=backups/..."; exit 1; }
+	@echo "⚠ Esto MACHACA dibujos.db de producción con $(FICHERO)."
+	@printf "Escribe 'DESTROY PRD dibujos' para continuar: "; read confirmacion; \
+	test "$$confirmacion" = "DESTROY PRD dibujos" || { echo "Cancelado."; exit 1; }
+	@ssh $(PRD_SSH) "docker exec -i $(PRD_CONTENEDOR) sh -c 'cat > /tmp/restaurar.db'" < "$(FICHERO)" \
+		&& ssh $(PRD_SSH) "docker exec $(PRD_CONTENEDOR) python3 -c 'import sqlite3; origen = sqlite3.connect(\"/tmp/restaurar.db\"); destino = sqlite3.connect(\"/app/data/dibujos.db\"); origen.backup(destino); destino.close()'" \
+		&& ssh $(PRD_SSH) "docker exec $(PRD_CONTENEDOR) rm /tmp/restaurar.db" \
+		&& echo "✔ dibujos.db de PRD restaurada desde $(FICHERO)"

@@ -1,0 +1,53 @@
+# charts.bazinguer.es — producción en Dokploy (VPS Hetzner), patrón de la casa.
+#
+# Alta (una sola vez):
+#   1. Publicar la imagen: GitHub → Actions → "Deploy" → Run workflow (confirm: yes).
+#   2. Dokploy → proyecto nuevo "trading-charts" → servicio "Docker Compose"
+#      → pegar este fichero como contenido raw.
+#   3. Environment del proyecto: copiar .env.dokploy.example y rellenar los
+#      secretos (el CHARTS_SECRET se genera, ver el comentario del example).
+#   4. Registry: credencial de GHCR en Dokploy (la imagen es privada).
+#   5. Advanced → Custom deploy command (OBLIGATORIO con TAG=latest — Dokploy
+#      no re-pullea un tag que ya tiene descargado):
+#        compose -p <PROJECT_SLUG> -f ./docker-compose.dokploy.yml up -d --pull always --force-recreate --remove-orphans
+#   6. DNS: charts.bazinguer.es → IP del VPS; Traefik emite el certificado solo.
+#
+# El volumen ../files/trading-charts-data es LECTURA-ESCRITURA y debe
+# sobrevivir a cualquier redeploy: contiene dibujos.db (el propósito del
+# proyecto; backup con `make -f Makefile.dev backup-prd` desde local) y los
+# parquet de velas que la app descarga bajo demanda.
+
+services:
+  charts:
+    image: ghcr.io/${GITHUB_REPO}:${TAG}
+    restart: unless-stopped
+    environment:
+      - CHARTS_USUARIO=${CHARTS_USUARIO}
+      - CHARTS_PASSWORD=${CHARTS_PASSWORD}
+      - CHARTS_SECRET=${CHARTS_SECRET}
+      - CHARTS_HTTPS=1
+    volumes:
+      - ../files/trading-charts-data:/app/data
+    networks:
+      - dokploy-network
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/api/salud', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.trading-charts.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.trading-charts.entrypoints=websecure"
+      - "traefik.http.routers.trading-charts.tls.certresolver=letsencrypt"
+      - "traefik.http.services.trading-charts.loadbalancer.server.port=8010"
+
+networks:
+  dokploy-network:
+    external: true

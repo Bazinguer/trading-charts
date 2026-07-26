@@ -1,0 +1,25 @@
+# Secretos y entorno
+.env
+.env.*
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+
+# Datos locales y backups (en PRD viven en el volumen)
+data/
+backups/
+
+# Frontend: dist se construye dentro de la imagen
+web/node_modules/
+web/dist/
+
+# Fuera del runtime
+.git/
+.claude/
+.playwright-mcp/
+stocks_lab/
+docs/
+CURRENT_WORK.md

@@ -38,9 +38,14 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
 - Listas de seguimiento: agrupan símbolos, nada más. Los dibujos se anclan al
   símbolo, así que un símbolo en varias listas comparte su AT y borrar una
   lista nunca borra dibujos. Sin sección "favoritos": una lista cumple ese rol.
+- Fondos UCITS: SOLO Yahoo (Morningstar descartado 2026-07: exige licencia
+  institucional, sin tier individual). Se buscan por ISIN; el buscador
+  enriquece nombre y divisa desde el meta del chart, y los NAV que llegan
+  sin open/high/low se guardan como vela plana al cierre.
 - Auth: un solo usuario, cookie httpOnly firmada (HMAC). Credenciales en `.env`
   (`CHARTS_USUARIO`, `CHARTS_PASSWORD`, `CHARTS_SECRET`). Todo `/api/*` la
-  exige salvo login/logout/sesion.
+  exige salvo login/logout/sesion y `/api/salud` (healthcheck). En PRD,
+  `CHARTS_HTTPS=1` añade el flag Secure a la cookie.
 - Tema OSCURO por defecto (`:root`), claro como override (`.light`). Sistema de
   diseño JomBotix adaptado en `docs/design/` (BRAND.md y UX_PATTERNS.md).
 - Navegación: top bar (Inicio | Gráficos), SIN sidebar. La única columna
@@ -66,6 +71,20 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
 - `stocks_lab/` — laboratorio heredado de trading-bot (origen del patrón de
   datos Yahoo). Los `exp_*` dependen de `crypto_lab` (trading-bot) y aquí NO
   corren: son referencia + registro de resultados.
+
+## Despliegue (charts.bazinguer.es)
+
+- Un solo contenedor: FastAPI sirve la API y el build de la SPA (Dockerfile
+  multi-stage, puerto 8010). Imagen en GHCR vía workflow "Deploy" (manual,
+  confirm=yes, solo desde main — nadie despliega en el merge). En el VPS
+  Hetzner, Dokploy con `docker-compose.dokploy.yml` pegado en raw (runbook de
+  alta en su cabecera) y Custom deploy command con `--pull always` (Dokploy no
+  re-pullea `latest` por sí solo).
+- Volumen LECTURA-ESCRITURA `../files/trading-charts-data:/app/data`: contiene
+  dibujos.db y los parquet. PRD arranca en lienzo en blanco (sin semillas).
+- Backup/restore de dibujos.db desde la máquina local:
+  `make -f Makefile.dev backup-prd` / `restore-prd` (doctrina anime-log: lo
+  que toca PRD nunca vive en el Makefile normal).
 
 ## Comandos
 
