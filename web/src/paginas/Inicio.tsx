@@ -396,6 +396,7 @@ function TablaLista({
 }) {
   const navegar = useNavigate()
   const [orden, setOrden] = useState<Orden>(null)
+  const [arrastrado, setArrastrado] = useState<string | null>(null)
   const simbolos = [...lista.simbolos].sort((a, b) => a.orden - b.orden).map((s) => s.simbolo)
   const columnasVisibles = COLUMNAS.filter((c) => visibles[c.id])
 
@@ -429,6 +430,18 @@ function TablaLista({
 
   const irAlGrafico = (simbolo: string) =>
     navegar(`/grafico/${encodeURIComponent(simbolo)}`, { state: { from: "/" } })
+
+  // Reordenar filas arrastrando (mismo patrón que los tabs de listas). Solo
+  // aplica al orden manual: con una columna ordenando, el orden es derivado
+  // y el arrastre se desactiva.
+  const soltarSobre = (destino: string) => {
+    if (arrastrado === null || arrastrado === destino) return
+    const nuevos = [...simbolos]
+    const desde = nuevos.indexOf(arrastrado)
+    const hasta = nuevos.indexOf(destino)
+    nuevos.splice(hasta, 0, ...nuevos.splice(desde, 1))
+    void alGuardarSimbolos(nuevos)
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -507,7 +520,14 @@ function TablaLista({
                 return (
                   <TableRow
                     key={simbolo}
-                    className="cursor-pointer"
+                    draggable={orden === null}
+                    onDragStart={() => setArrastrado(simbolo)}
+                    onDragEnd={() => setArrastrado(null)}
+                    onDragOver={(e) => {
+                      if (orden === null) e.preventDefault()
+                    }}
+                    onDrop={() => soltarSobre(simbolo)}
+                    className={cn("cursor-pointer", arrastrado === simbolo && "opacity-50")}
                     onClick={() => irAlGrafico(simbolo)}
                   >
                     {columnasVisibles.map((c) => (
@@ -729,9 +749,19 @@ export function Inicio() {
                     [String(l.id)]: { ...m[String(l.id)], [col]: visible },
                   }))
                 }
-                alGuardarSimbolos={(simbolos) =>
-                  ejecutar(() => apiPut(`/api/listas/${l.id}/simbolos`, { simbolos }))
-                }
+                alGuardarSimbolos={(simbolos) => {
+                  // Optimista: la fila se recoloca/quita ya; cargar() tras el
+                  // PUT confirma o revierte (mismo patrón que los tabs).
+                  setListas(
+                    (ls) =>
+                      ls?.map((x) =>
+                        x.id === l.id
+                          ? { ...x, simbolos: simbolos.map((simbolo, orden) => ({ simbolo, orden })) }
+                          : x,
+                      ) ?? ls,
+                  )
+                  return ejecutar(() => apiPut(`/api/listas/${l.id}/simbolos`, { simbolos }))
+                }}
                 alRenombrar={() => {
                   setRenombrar(l)
                   setNombreEditado(l.nombre)
