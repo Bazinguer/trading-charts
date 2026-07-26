@@ -159,7 +159,7 @@ export function BarraHerramientas({
             className="text-muted-foreground hover:text-foreground"
             onClick={() => elegir(grupo.herramientas[0].name)}
           >
-            <grupo.Icono />
+            <grupo.Icono className="size-5" />
           </Button>
         ) : (
           <Popover
@@ -175,7 +175,7 @@ export function BarraHerramientas({
                 aria-label={grupo.etiqueta}
                 className="text-muted-foreground hover:text-foreground"
               >
-                <grupo.Icono />
+                <grupo.Icono className="size-5" />
               </Button>
             </PopoverTrigger>
             <PopoverContent side="right" align="start" className="w-56 p-1">
@@ -204,7 +204,7 @@ export function BarraHerramientas({
         className="text-primary hover:text-primary"
         onClick={onGuardar}
       >
-        <Save />
+        <Save className="size-5" />
       </Button>
       <Button
         variant="ghost"
@@ -214,7 +214,7 @@ export function BarraHerramientas({
         className="text-muted-foreground hover:text-destructive"
         onClick={onLimpiar}
       >
-        <Eraser />
+        <Eraser className="size-5" />
       </Button>
     </div>
   )
