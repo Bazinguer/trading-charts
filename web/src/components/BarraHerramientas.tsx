@@ -14,7 +14,6 @@ import {
   MoveVertical,
   Save,
   SeparatorVertical,
-  Slash,
   Square,
   Tag,
   Triangle,
@@ -30,47 +29,65 @@ import {
   IconoPincel,
   IconoRegla,
   IconoTexto,
-  IconoVertical,
 } from "@/components/IconosHerramientas"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 type Icono = ComponentType<SVGProps<SVGSVGElement>>
-type Herramienta = { name: string; etiqueta: string; Icono: Icono }
+type Herramienta = { name: string; etiqueta: string; Icono: Icono; seccion?: string }
 type Grupo = { id: string; etiqueta: string; Icono: Icono; herramientas: Herramienta[] }
 
 // Los 16 overlays incorporados de KLineChart 10, agrupados en "kits" estilo
 // Investing. Un grupo de una sola herramienta se pinta como botón directo.
+// La Tendencia (segmento libre) va sola arriba: es la más usada y un segmento
+// libre también hace de horizontal; el resto de líneas comparte grupo, con
+// secciones dentro del flyout.
 const GRUPOS: Grupo[] = [
+  {
+    id: "tendencia",
+    etiqueta: "Tendencia",
+    Icono: IconoLinea,
+    herramientas: [{ name: "segment", etiqueta: "Tendencia", Icono: IconoLinea }],
+  },
   {
     id: "lineas",
     etiqueta: "Líneas",
-    Icono: IconoLinea,
-    herramientas: [
-      { name: "segment", etiqueta: "Tendencia", Icono: Slash },
-      { name: "rayLine", etiqueta: "Rayo", Icono: MoveUpRight },
-      { name: "straightLine", etiqueta: "Recta infinita", Icono: Infinity },
-    ],
-  },
-  {
-    id: "horizontales",
-    etiqueta: "Horizontales",
     Icono: IconoHorizontal,
     herramientas: [
-      { name: "horizontalSegment", etiqueta: "Segmento horizontal", Icono: Minus },
-      { name: "horizontalRayLine", etiqueta: "Rayo horizontal", Icono: ArrowRight },
-      { name: "horizontalStraightLine", etiqueta: "Horizontal infinita", Icono: MoveHorizontal },
-      { name: "priceLine", etiqueta: "Línea de precio", Icono: DollarSign },
-    ],
-  },
-  {
-    id: "verticales",
-    etiqueta: "Verticales",
-    Icono: IconoVertical,
-    herramientas: [
-      { name: "verticalSegment", etiqueta: "Segmento vertical", Icono: MoveVertical },
-      { name: "verticalRayLine", etiqueta: "Rayo vertical", Icono: ArrowUp },
-      { name: "verticalStraightLine", etiqueta: "Vertical infinita", Icono: SeparatorVertical },
+      { name: "rayLine", etiqueta: "Rayo", Icono: MoveUpRight, seccion: "Libres" },
+      { name: "straightLine", etiqueta: "Recta infinita", Icono: Infinity, seccion: "Libres" },
+      {
+        name: "horizontalStraightLine",
+        etiqueta: "Horizontal infinita",
+        Icono: MoveHorizontal,
+        seccion: "Horizontales",
+      },
+      {
+        name: "horizontalSegment",
+        etiqueta: "Segmento horizontal",
+        Icono: Minus,
+        seccion: "Horizontales",
+      },
+      {
+        name: "horizontalRayLine",
+        etiqueta: "Rayo horizontal",
+        Icono: ArrowRight,
+        seccion: "Horizontales",
+      },
+      { name: "priceLine", etiqueta: "Línea de precio", Icono: DollarSign, seccion: "Horizontales" },
+      {
+        name: "verticalStraightLine",
+        etiqueta: "Vertical infinita",
+        Icono: SeparatorVertical,
+        seccion: "Verticales",
+      },
+      {
+        name: "verticalSegment",
+        etiqueta: "Segmento vertical",
+        Icono: MoveVertical,
+        seccion: "Verticales",
+      },
+      { name: "verticalRayLine", etiqueta: "Rayo vertical", Icono: ArrowUp, seccion: "Verticales" },
     ],
   },
   {
@@ -179,16 +196,22 @@ export function BarraHerramientas({
               </Button>
             </PopoverTrigger>
             <PopoverContent side="right" align="start" className="w-56 p-1">
-              {grupo.herramientas.map((h) => (
-                <Button
-                  key={h.name}
-                  variant="ghost"
-                  className="h-8 w-full justify-start gap-2 px-2 text-sm font-normal"
-                  onClick={() => elegir(h.name)}
-                >
-                  <h.Icono className="h-4 w-4 text-muted-foreground" />
-                  {h.etiqueta}
-                </Button>
+              {grupo.herramientas.map((h, i) => (
+                <div key={h.name}>
+                  {h.seccion && h.seccion !== grupo.herramientas[i - 1]?.seccion && (
+                    <p className="px-2 pb-0.5 pt-1.5 text-xs font-medium text-muted-foreground">
+                      {h.seccion}
+                    </p>
+                  )}
+                  <Button
+                    variant="ghost"
+                    className="h-8 w-full justify-start gap-2 px-2 text-sm font-normal"
+                    onClick={() => elegir(h.name)}
+                  >
+                    <h.Icono className="h-4 w-4 text-muted-foreground" />
+                    {h.etiqueta}
+                  </Button>
+                </div>
               ))}
             </PopoverContent>
           </Popover>
