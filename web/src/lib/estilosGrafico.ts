@@ -85,6 +85,15 @@ export function estilosBase(tema: Tema, rejilla: boolean): DeepPartial<Styles> {
 
 export type EstiloLinea = "continua" | "discontinua" | "punteada"
 
+// Estilo de línea de KLineChart a partir de los ajustes básicos de un dibujo.
+export function lineaDesdeAjustes(grosor: number | undefined, estilo: EstiloLinea) {
+  return {
+    size: grosor ?? 1,
+    style: estilo === "continua" ? ("solid" as const) : ("dashed" as const),
+    dashedValue: estilo === "punteada" ? [2, 3] : [8, 5],
+  }
+}
+
 function hexARgba(hex: string, alfa: number): string {
   const n = parseInt(hex.slice(1), 16)
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alfa})`

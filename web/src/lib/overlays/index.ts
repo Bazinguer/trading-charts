@@ -9,7 +9,7 @@ import { fibonacci } from "./fibonacci"
 import { circle, rect, triangle } from "./formas"
 import { medicion } from "./medicion"
 
-export { NIVELES_FIBONACCI, type ExtraFibonacci } from "./fibonacci"
+export { NIVELES_FIBONACCI, nivelesDeExtra, type ExtraFibonacci } from "./fibonacci"
 export { RELLENO as RELLENO_FORMAS } from "./formas"
 
 export function registrarOverlays(): void {

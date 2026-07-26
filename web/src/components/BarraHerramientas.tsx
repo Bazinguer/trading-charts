@@ -1,9 +1,8 @@
 import { useState } from "react"
+import type { ComponentType, SVGProps } from "react"
 import {
-  AlignJustify,
   ArrowRight,
   ArrowUp,
-  Brush,
   Circle,
   DollarSign,
   Equal,
@@ -13,7 +12,6 @@ import {
   MoveHorizontal,
   MoveUpRight,
   MoveVertical,
-  Ruler,
   Save,
   SeparatorVertical,
   Slash,
@@ -22,13 +20,24 @@ import {
   Triangle,
   Type,
 } from "lucide-react"
-import type { LucideIcon } from "lucide-react"
 
+import {
+  IconoCanal,
+  IconoFibonacci,
+  IconoFormas,
+  IconoHorizontal,
+  IconoLinea,
+  IconoPincel,
+  IconoRegla,
+  IconoTexto,
+  IconoVertical,
+} from "@/components/IconosHerramientas"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-type Herramienta = { name: string; etiqueta: string; Icono: LucideIcon }
-type Grupo = { id: string; etiqueta: string; Icono: LucideIcon; herramientas: Herramienta[] }
+type Icono = ComponentType<SVGProps<SVGSVGElement>>
+type Herramienta = { name: string; etiqueta: string; Icono: Icono }
+type Grupo = { id: string; etiqueta: string; Icono: Icono; herramientas: Herramienta[] }
 
 // Los 16 overlays incorporados de KLineChart 10, agrupados en "kits" estilo
 // Investing. Un grupo de una sola herramienta se pinta como botón directo.
@@ -36,7 +45,7 @@ const GRUPOS: Grupo[] = [
   {
     id: "lineas",
     etiqueta: "Líneas",
-    Icono: Slash,
+    Icono: IconoLinea,
     herramientas: [
       { name: "segment", etiqueta: "Tendencia", Icono: Slash },
       { name: "rayLine", etiqueta: "Rayo", Icono: MoveUpRight },
@@ -46,7 +55,7 @@ const GRUPOS: Grupo[] = [
   {
     id: "horizontales",
     etiqueta: "Horizontales",
-    Icono: Minus,
+    Icono: IconoHorizontal,
     herramientas: [
       { name: "horizontalSegment", etiqueta: "Segmento horizontal", Icono: Minus },
       { name: "horizontalRayLine", etiqueta: "Rayo horizontal", Icono: ArrowRight },
@@ -57,7 +66,7 @@ const GRUPOS: Grupo[] = [
   {
     id: "verticales",
     etiqueta: "Verticales",
-    Icono: SeparatorVertical,
+    Icono: IconoVertical,
     herramientas: [
       { name: "verticalSegment", etiqueta: "Segmento vertical", Icono: MoveVertical },
       { name: "verticalRayLine", etiqueta: "Rayo vertical", Icono: ArrowUp },
@@ -67,7 +76,7 @@ const GRUPOS: Grupo[] = [
   {
     id: "canales",
     etiqueta: "Canales",
-    Icono: Equal,
+    Icono: IconoCanal,
     herramientas: [
       { name: "parallelStraightLine", etiqueta: "Paralelas", Icono: Equal },
       { name: "priceChannelLine", etiqueta: "Canal de precio", Icono: MoveUpRight },
@@ -76,13 +85,13 @@ const GRUPOS: Grupo[] = [
   {
     id: "fibonacci",
     etiqueta: "Fibonacci",
-    Icono: AlignJustify,
-    herramientas: [{ name: "fibonacciLine", etiqueta: "Fibonacci", Icono: AlignJustify }],
+    Icono: IconoFibonacci,
+    herramientas: [{ name: "fibonacciLine", etiqueta: "Fibonacci", Icono: IconoFibonacci }],
   },
   {
     id: "formas",
     etiqueta: "Formas",
-    Icono: Square,
+    Icono: IconoFormas,
     herramientas: [
       { name: "rect", etiqueta: "Rectángulo", Icono: Square },
       { name: "circle", etiqueta: "Círculo", Icono: Circle },
@@ -92,13 +101,13 @@ const GRUPOS: Grupo[] = [
   {
     id: "medicion",
     etiqueta: "Regla",
-    Icono: Ruler,
-    herramientas: [{ name: "measure", etiqueta: "Regla de medición", Icono: Ruler }],
+    Icono: IconoRegla,
+    herramientas: [{ name: "measure", etiqueta: "Regla de medición", Icono: IconoRegla }],
   },
   {
     id: "anotaciones",
     etiqueta: "Anotaciones",
-    Icono: Type,
+    Icono: IconoTexto,
     herramientas: [
       { name: "simpleAnnotation", etiqueta: "Texto", Icono: Type },
       { name: "simpleTag", etiqueta: "Etiqueta", Icono: Tag },
@@ -107,8 +116,8 @@ const GRUPOS: Grupo[] = [
   {
     id: "pincel",
     etiqueta: "Pincel",
-    Icono: Brush,
-    herramientas: [{ name: "brush", etiqueta: "Pincel", Icono: Brush }],
+    Icono: IconoPincel,
+    herramientas: [{ name: "brush", etiqueta: "Pincel", Icono: IconoPincel }],
   },
 ]
 

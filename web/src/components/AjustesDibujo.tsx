@@ -41,12 +41,14 @@ export function AjustesDibujo({
   ajustes,
   onCerrar,
   onCambiar,
+  onFijarBase,
 }: {
   abierto: boolean
   titulo: string
   ajustes: AjustesForma | null
   onCerrar: () => void
   onCambiar: (cambios: AjustesForma) => void
+  onFijarBase?: () => void
 }) {
   if (!abierto || !ajustes) return null
 
@@ -152,6 +154,14 @@ export function AjustesDibujo({
             ))}
           </div>
         </div>
+
+        {ajustes.niveles && onFijarBase && (
+          <div className="flex justify-end border-t pt-3">
+            <Button size="sm" variant="secondary" onClick={onFijarBase}>
+              Fijar como diseño base
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

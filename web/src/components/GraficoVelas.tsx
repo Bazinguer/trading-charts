@@ -10,7 +10,19 @@ import { BarraHerramientas, etiquetaHerramienta } from "@/components/BarraHerram
 import { SelectorIndicadores } from "@/components/SelectorIndicadores"
 import { Button } from "@/components/ui/button"
 import { useTema } from "@/contextos/tema"
-import { NIVELES_FIBONACCI, type ExtraFibonacci } from "@/lib/overlays"
+import { NIVELES_FIBONACCI, nivelesDeExtra, type ExtraFibonacci } from "@/lib/overlays"
+
+// Diseño base del Fibonacci: los fibos nuevos parten de estos ajustes.
+const CLAVE_FIBO_BASE = "tc-fibo-base"
+
+function leerBaseFibo(): AjustesForma | null {
+  try {
+    const crudo = localStorage.getItem(CLAVE_FIBO_BASE)
+    return crudo ? (JSON.parse(crudo) as AjustesForma) : null
+  } catch {
+    return null
+  }
+}
 import { api, apiPut, ErrorApi } from "@/lib/api"
 import {
   estilosBase,
@@ -18,6 +30,7 @@ import {
   estilosLineas,
   FEATURE_AJUSTES,
   FEATURE_QUITAR,
+  lineaDesdeAjustes,
   type EstiloLinea,
 } from "@/lib/estilosGrafico"
 import type { EntradaCatalogo, Indicador } from "@/lib/indicadores"
@@ -124,6 +137,8 @@ export function GraficoVelas({
   const [ajustesDe, setAjustesDe] = useState<string | null>(null)
   // Dibujo seleccionado en el lienzo (click sobre él): habilita borrado individual.
   const [seleccionado, setSeleccionado] = useState<{ id: string; name: string } | null>(null)
+  // Portapapeles interno de dibujos (Ctrl+C / Ctrl+V).
+  const portapapelesRef = useRef<DibujoGuardado | null>(null)
   // Ajustes del dibujo seleccionado; null = diálogo cerrado.
   const [ajustesDibujo, setAjustesDibujo] = useState<AjustesForma | null>(null)
 
@@ -246,6 +261,19 @@ export function GraficoVelas({
       if (texto) chart.createOverlay({ name, extendData: texto, ...eventosOverlay })
       return
     }
+    // El fibonacci nuevo parte del diseño base fijado por el usuario, si existe.
+    if (name === "fibonacciLine") {
+      const base = leerBaseFibo()
+      if (base) {
+        chart.createOverlay({
+          name,
+          extendData: { niveles: (base.niveles ?? NIVELES_FIBONACCI).join(","), color: base.color },
+          styles: { line: lineaDesdeAjustes(base.grosor, base.estilo) },
+          ...eventosOverlay,
+        })
+        return
+      }
+    }
     chart.createOverlay({ name, ...eventosOverlay })
   }
 
@@ -278,7 +306,7 @@ export function GraficoVelas({
       // El fibo guarda su color en extendData: null = paleta multicolor por nivel.
       const extra = vivo.extendData as ExtraFibonacci | undefined
       setAjustesDibujo({
-        niveles: extra?.niveles ?? NIVELES_FIBONACCI,
+        niveles: nivelesDeExtra(extra),
         color: extra?.color ?? null,
         grosor: linea?.size,
         estilo,
@@ -293,17 +321,15 @@ export function GraficoVelas({
     if (!chart || !seleccionado) return
     if (seleccionado.name === "fibonacciLine") {
       // La plantilla del fibo resuelve colores por nivel; aquí solo viajan la
-      // config (extendData) y grosor/estilo de línea. Color null = multicolor.
+      // config (extendData, niveles como CSV: ver ExtraFibonacci) y
+      // grosor/estilo de línea. Color null = multicolor.
       chart.overrideOverlay({
         id: seleccionado.id,
-        extendData: { niveles: cambios.niveles, color: cambios.color },
-        styles: {
-          line: {
-            size: cambios.grosor ?? 1,
-            style: cambios.estilo === "continua" ? "solid" : "dashed",
-            dashedValue: cambios.estilo === "punteada" ? [2, 3] : [8, 5],
-          },
+        extendData: {
+          niveles: (cambios.niveles ?? NIVELES_FIBONACCI).join(","),
+          color: cambios.color,
         },
+        styles: { line: lineaDesdeAjustes(cambios.grosor, cambios.estilo) },
       })
     } else {
       chart.overrideOverlay({
@@ -314,15 +340,54 @@ export function GraficoVelas({
     setAjustesDibujo(cambios)
   }
 
-  // Supr/Backspace borran el dibujo seleccionado (salvo con el foco en un input).
-  useEffect(() => {
+  const fijarBaseFibo = () => {
+    if (!ajustesDibujo) return
+    localStorage.setItem(CLAVE_FIBO_BASE, JSON.stringify(ajustesDibujo))
+    setEstado("Diseño base del Fibonacci guardado — los nuevos partirán de él")
+  }
+
+  const copiarSeleccionado = () => {
     if (!seleccionado) return
+    const vivo = chartRef.current?.getOverlays({ id: seleccionado.id })[0]
+    if (!vivo) return
+    portapapelesRef.current = {
+      name: vivo.name,
+      points: vivo.points.map((p) => ({ timestamp: p.timestamp, value: p.value })),
+      extendData: vivo.extendData,
+      ...(vivo.styles ? { styles: vivo.styles } : {}),
+    }
+    setEstado(`${etiquetaHerramienta(vivo.name)} copiado — Ctrl+V para pegar`)
+  }
+
+  const pegarDibujo = () => {
+    const chart = chartRef.current
+    const copia = portapapelesRef.current
+    if (!chart || !copia) return
+    // Desplazado unas velas a la derecha para que se distinga del original.
+    const datos = chart.getDataList()
+    const delta = datos.length > 1 ? datos[1].timestamp - datos[0].timestamp : 86_400_000
+    const points = copia.points.map((p) => ({
+      ...p,
+      ...(typeof p.timestamp === "number" ? { timestamp: p.timestamp + delta * 5 } : {}),
+    }))
+    chart.createOverlay({ ...copia, points, ...eventosOverlay })
+    setEstado("Dibujo pegado — muévelo a su sitio y guarda")
+  }
+
+  // Teclado global: Supr borra, Ctrl/Cmd+C copia, Ctrl/Cmd+V pega. Se ignoran
+  // pulsaciones con el foco en un input (los diálogos tienen los suyos).
+  useEffect(() => {
     const alPulsar = (e: KeyboardEvent) => {
-      if (e.key !== "Delete" && e.key !== "Backspace") return
       const objetivo = e.target as HTMLElement | null
       if (objetivo && (objetivo.tagName === "INPUT" || objetivo.tagName === "TEXTAREA")) return
-      e.preventDefault()
-      borrarSeleccionado()
+      if ((e.key === "Delete" || e.key === "Backspace") && seleccionado) {
+        e.preventDefault()
+        borrarSeleccionado()
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c" && seleccionado) {
+        copiarSeleccionado()
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        pegarDibujo()
+      }
     }
     window.addEventListener("keydown", alPulsar)
     return () => window.removeEventListener("keydown", alPulsar)
@@ -453,6 +518,7 @@ export function GraficoVelas({
         ajustes={ajustesDibujo}
         onCerrar={() => setAjustesDibujo(null)}
         onCambiar={cambiarAjustesDibujo}
+        onFijarBase={fijarBaseFibo}
       />
     </div>
   )

@@ -26,8 +26,21 @@ import type { OverlayTemplate } from "klinecharts"
 // Niveles estándar (fracción del rango). El 1 y el 0 son los extremos.
 export const NIVELES_FIBONACCI = [1, 0.786, 0.618, 0.5, 0.382, 0.236, 0]
 
+// niveles: CSV de fracciones ("1,0.618,0"). Es string a propósito: el
+// overrideOverlay de KLineChart fusiona extendData en profundidad y los
+// ARRAYS se mezclan por índice — al encoger, los niveles viejos del final
+// sobrevivirían. Un string se asigna entero, nunca se fusiona.
 // color: null/ausente = paleta por nivel (multicolor); string = monocromo.
-export type ExtraFibonacci = { niveles?: number[]; color?: string | null }
+export type ExtraFibonacci = { niveles?: string; color?: string | null }
+
+export function nivelesDeExtra(extra: ExtraFibonacci | undefined): number[] {
+  if (!extra?.niveles) return NIVELES_FIBONACCI
+  const niveles = extra.niveles
+    .split(",")
+    .map(Number)
+    .filter((n) => Number.isFinite(n))
+  return niveles.length > 0 ? niveles : NIVELES_FIBONACCI
+}
 
 // Paleta por nivel estilo TradingView, dark-friendly (tokens del DS).
 const COLOR_NIVEL: Record<string, string> = {
@@ -70,7 +83,7 @@ export const fibonacci: OverlayTemplate = {
     }
 
     const extra = overlay.extendData as ExtraFibonacci | undefined
-    const visibles = [...(extra?.niveles ?? NIVELES_FIBONACCI)].sort((a, b) => b - a)
+    const visibles = nivelesDeExtra(extra).sort((a, b) => b - a)
     const colorUnico = extra?.color
     const linea = overlay.styles?.line as
       | { size?: number; style?: string; dashedValue?: number[] }
