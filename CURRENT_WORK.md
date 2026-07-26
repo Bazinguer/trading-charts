@@ -6,60 +6,65 @@
 (11/11 tests, incluida la prueba reina: dibujar→guardar→F5→persiste). Fondos
 UCITS resueltos SOLO con Yahoo (Morningstar descartado por licencia/complejidad).
 La app hace todo lo pedido: gráfico con intervalos 1H/4H/1D/1S/1M, indicadores
-y dibujos por símbolo persistentes, barra de dibujo completa, listas
-reordenables arrastrando sus tabs Y sus símbolos reordenables arrastrando
-filas. El buscador de Binance cubre pares USDT y USDC (MiCA retiró USDT spot
-en la EEA en 2025 — el bot y las inversiones cripto del usuario operan USDC).
-Ya hubo tres redeploys reales en PRD sin incidencias. Sin pendientes
-bloqueantes; un fleco cosmético opcional (ver Notas Importantes).
+y dibujos por símbolo persistentes (incluidos los de texto, ahora
+seleccionables/arrastrables como el resto de herramientas), barra de dibujo
+completa, listas reordenables arrastrando sus tabs Y sus símbolos reordenables
+arrastrando filas. El buscador de Binance cubre pares USDT y USDC (MiCA retiró
+USDT spot en la EEA en 2025 — el bot y las inversiones cripto del usuario
+operan USDC). Ya hubo cuatro redeploys reales en PRD sin incidencias. Sin
+pendientes bloqueantes; un fleco cosmético opcional (ver Notas Importantes).
 
 ## 📍 Última Sesión Completada
 
-### Fecha: 2026-07-26 (noche, segunda sesión) — "reordenar símbolos + deploy"
+### Fecha: 2026-07-26 (noche, tercera sesión) — "dibujos de texto seleccionables/arrastrables + deploy"
 
 ### Contexto de la Sesión:
 
-Antes de crear su primer dibujo real, el usuario añadió BTC+ETH a su lista y
-detectó que no podía reordenar los símbolos dentro de una lista. El orden
-manual es su criterio de prioridad (los más importantes/vigilados arriba).
+El usuario detectó en pruebas manuales que los dibujos de texto
+("Texto"/simpleAnnotation y "Etiqueta"/simpleTag) no podían moverse una vez
+colocados ni mostraban los botones de Ajustes/Borrar al clicarlos, a
+diferencia del resto de herramientas de dibujo.
 
 ### Trabajo Completado:
 
-- ✅ **Reordenar símbolos arrastrando sus filas** (`d1f8776`, rama
-  `feat/reordenar-simbolos` → merge ff a main → push). Solo frontend, 1
-  fichero: `web/src/paginas/Inicio.tsx` (+34/−4) — el backend YA persistía
-  el orden (`lista_simbolos.orden` + PUT de reemplazo completo), solo
-  faltaba el gesto en la UI.
-- ✅ Drag & drop nativo de filas en `TablaLista`, mismo patrón que los tabs
-  de listas (convención TradingView); actualización optimista en
-  `alGuardarSimbolos` (la fila se recoloca/quita sin parpadeo, `cargar()`
-  confirma o revierte); con ordenación por columna activa el arrastre se
-  desactiva (el orden visual es derivado).
-- ✅ Verificado en dev: `make lint` OK (oxlint, no eslint/prettier);
-  Playwright: arrastre en ambos sentidos persiste en BD y tras F5; con sort
-  activo `draggable=false`; el clic en fila sigue navegando al gráfico.
-- ✅ **Deploy a PRD verificado** (tercer deploy real, sin incidencias):
-  backup previo `backups/dibujos_prd_20260726_214113.db` (32K); workflow
-  Deploy disparado con curl + PAT del remote (204; run success sobre
-  `d1f8776`); redeploy en Dokploy hecho por el usuario. Verificado en
-  charts.bazinguer.es: contenedor `trading-charts-2hwnph-charts-1` healthy
-  con imagen nueva, volumen intacto (dibujos.db 32K + parquets
-  BTCUSDC/ETHUSDC/BTCUSDT), `/api/salud` 200, login HTTPS 200, prueba real
-  de arrastre (persiste tras recarga, revertido a orden original del
-  usuario), logout y redirección a `/login` OK.
+- ✅ **Causa raíz**: las plantillas built-in de KLineChart 10.0.0 marcan
+  TODAS sus figuras con `ignoreEvent: true` — el click las atraviesa: sin
+  selección (sin botones) y sin arrastre.
+- ✅ **Fix** (`c34edf7`, rama `fix/mover-dibujos-texto` → merge ff a main →
+  push; rama conservada). Nuevo `web/src/lib/overlays/texto.ts` con las dos
+  plantillas vendorizadas de KLineChart 10.0.0 (Apache-2.0), MISMOS nombres
+  que las incorporadas para sustituirlas sin romper el contrato de
+  persistencia (mismo patrón que `fibonacciLine`). Cambios deliberados: sin
+  `ignoreEvent` en las figuras visibles + figuras por defecto activadas
+  (punto de anclaje y etiquetas de eje, solo visibles en hover/selección).
+  En `simpleTag` se deja OFF `needDefaultYAxisFigure` porque su texto de eje
+  ya lo pinta `createYAxisFigures` (el default duplicaría la etiqueta).
+  Registro en `overlays/index.ts` con comentario del contrato actualizado.
+- ✅ Verificado E2E en dev con Playwright (agente ui-tester), 6/6 PASS sobre
+  BTCUSDC: selección con botones "Ajustes"+"Borrar Texto/Etiqueta", arrastre
+  libre con cambio de `points` confirmado por API tras guardar, persistencia
+  tras F5, borrado con Supr, BD de dev restaurada exacta al baseline. 0
+  errores de consola. `make lint` OK. El usuario lo probó también a mano en
+  dev antes del deploy.
+- ✅ **Deploy a PRD verificado** (cuarto deploy real, sin incidencias):
+  backup previo `backups/dibujos_prd_20260726_222442.db` (32K); workflow
+  Deploy disparado con curl + PAT (204; run success sobre `c34edf7`);
+  redeploy en Dokploy hecho por el usuario. Verificado: contenedor
+  `trading-charts-2hwnph-charts-1` healthy con la imagen nueva (creada 20:25
+  UTC), volumen intacto (dibujos.db 32K + parquets — el usuario ya tiene
+  ADA/THETA/VET además de BTC/ETH en USDC y USDT), `/api/salud` 200, SPA
+  200. El usuario probó los dibujos de texto EN PRD y confirmó que funciona.
 
 ### Estado al Finalizar:
 
-- `main` en `d1f8776`, local, `origin/main` y producción al día. Working
+- `main` en `c34edf7`, local, `origin/main` y producción al día. Working
   tree limpio.
-- charts.bazinguer.es healthy y verificado; backup de dibujos reciente.
-- Servidores dev apagados; rama `feat/reordenar-simbolos` mergeada y
-  conservada (misma costumbre que `feat/base-app` y `feat/grafico`).
+- Servidores dev apagados; backup de dibujos reciente.
 
 ### Próximos Pasos Sugeridos:
 
-1. Sin bloqueantes: la próxima sesión la marca el usuario (previsiblemente
-   sus primeras listas/dibujos reales, ya con reordenado de filas disponible).
+1. Sin bloqueantes: el usuario ya está usando la app en real (listas y
+   símbolos propios) — la próxima sesión la marca él.
 2. Fleco cosmético del logout (ver Notas Importantes) — opcional, solo si
    algún día molesta.
 3. Sigue en background: adaptar referencias de skills/agents heredados de
@@ -67,15 +72,18 @@ manual es su criterio de prioridad (los más importantes/vigilados arriba).
 
 ---
 🔴 [FIN DE SESIÓN - BREAKPOINT]
-📅 Fecha: 2026-07-26 (noche, segunda sesión)
-🎯 Estado: Producción al día con reordenado de símbolos por drag & drop
-    desplegado y verificado E2E; sin pendientes bloqueantes.
-⏭️  Retomar: sin acción predefinida — esperar lo que traiga el usuario
-    (previsiblemente sus primeras listas/dibujos reales).
+📅 Fecha: 2026-07-26 (noche, tercera sesión)
+🎯 Estado: Producción al día con dibujos de texto seleccionables/arrastrables
+    desplegados y verificados E2E; sin pendientes bloqueantes.
+⏭️  Retomar: sin acción predefinida — esperar lo que traiga el usuario (ya
+    usando la app en real).
 ---
 
 ## 📝 Sesiones Anteriores (Resumen)
 
+- 2026-07-26 (noche, segunda sesión): símbolos reordenables arrastrando sus
+  filas (`d1f8776`, backend ya persistía el orden), deploy a PRD verificado
+  (tercer redeploy real).
 - 2026-07-26 (noche, primera sesión): pares USDC en el buscador de Binance
   (`5fbf8e4`, `QUOTES_BINANCE` con USDT+USDC — MiCA retiró USDT spot en la
   EEA en 2025), caché de símbolos invalidado, deploy a PRD verificado
@@ -117,6 +125,9 @@ por símbolo, una fuente de verdad por familia de intervalos, auth de usuario
   día en curso) — no "arreglar" eso sin entender por qué está así.
 - El diseño base del fibo y las preferencias de visualización viven en
   localStorage del navegador (tc-fibo-base, tc-tipo-grafico, tc-rejilla).
+- La línea horizontal de la "Etiqueta" (simpleTag) tiene hit-area fina
+  (~2px), como cualquier línea de la librería: si un día "no se deja
+  seleccionar", es precisión de click, no regresión.
 - **Deploy de nueva versión**: merge a main → Actions "Deploy" (confirm=yes)
   → Dokploy Deploy (el custom command hace `--pull always`).
 - **`backup-prd` ANTES** de cambios arriesgados y después de análisis
