@@ -6,8 +6,10 @@
 (11/11 tests, incluida la prueba reina: dibujar→guardar→F5→persiste). Fondos
 UCITS resueltos SOLO con Yahoo (Morningstar descartado por licencia/complejidad).
 La app hace todo lo pedido: gráfico con intervalos 1H/4H/1D/1S/1M, indicadores
-y dibujos por símbolo persistentes, barra de dibujo completa. Quedan flecos
-menores (ver Próximos Pasos) y ningún bloqueante.
+y dibujos por símbolo persistentes, barra de dibujo completa, listas
+reordenables arrastrando sus tabs. Ya hubo un primer redeploy real en PRD
+(imagen nueva, volumen intacto) sin incidencias. Quedan flecos menores (ver
+Próximos Pasos) y ningún bloqueante.
 
 ## 📍 Última Sesión Completada
 
@@ -51,13 +53,29 @@ menores (ver Próximos Pasos) y ningún bloqueante.
   - `.claude/` pasa a trackearse en git (decisión del usuario, `a245a4e`;
     excluido `settings.local.json`).
 
+#### Apéndice (post-cierre, ya en producción)
+
+- ✅ **Reordenar listas arrastrando sus tabs** (`b5e0bdf`) — pedido por el
+  usuario justo antes de estrenar la app: `PUT /api/listas/orden` (reemplazo
+  completo de la secuencia de ids; registrado ANTES de `/listas/{id}` para
+  que `"orden"` no se parsee como id) + drag & drop nativo HTML5 en los
+  `TabsTrigger` (convención TradingView, sin dependencias nuevas),
+  recolocación optimista. E2E dev 7/7 PASS (reordena, persiste tras F5, no
+  rompe el click, símbolos y dibujos intactos byte a byte).
+- ✅ **Primer redeploy real verificado** — nueva imagen publicada vía Actions
+  (workflow Deploy) y redeploy en Dokploy hecho por el usuario. Verificado en
+  PRD: contenedor healthy con la imagen nueva (mismo nombre
+  `trading-charts-2hwnph-charts-1`), endpoint nuevo vivo (401 sin sesión), y
+  el volumen sobrevivió al `--force-recreate` (dibujos.db + parquet BTCUSDT
+  intactos) — sin incidencias.
+
 ### Estado al Finalizar:
 
-- `main` al día, working tree limpio, 1 commit por delante de `origin/main`
-  (pendiente de `push` por el principal).
-- charts.bazinguer.es en producción, healthy, con backup de dibujos probado.
+- `main` al día con `origin/main` (`b5e0bdf` incluido, ya en producción).
+- charts.bazinguer.es en producción, healthy, con la versión de reordenar
+  listas desplegada y verificada; backup de dibujos probado.
 - BD dev: BTCUSDT con sus 3 dibujos originales; BD PRD: BTCUSDT con dibujos
-  de la prueba E2E (limpiados) + su histórico descargado.
+  de las pruebas E2E (limpiados) + su histórico descargado.
 
 ### Próximos Pasos Sugeridos:
 
@@ -71,8 +89,10 @@ menores (ver Próximos Pasos) y ningún bloqueante.
 
 ---
 🔴 [FIN DE SESIÓN - BREAKPOINT]
-📅 Fecha: 2026-07-26
-🎯 Estado: Producción viva y verificada; sin bloqueantes, solo flecos menores.
+📅 Fecha: 2026-07-26 (tarde-noche)
+🎯 Estado: Producción viva, verificada y con el primer redeploy real ya
+    probado sin incidencias (listas reordenables incluidas); sin
+    bloqueantes, solo flecos menores.
 ⏭️  Retomar: fix del `navigate('/login')` tras logout, o abordar los flecos
     de datos (fondos UCITS reales / SOLUSD) según lo que priorice el usuario.
 ---
