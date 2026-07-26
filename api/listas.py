@@ -58,6 +58,23 @@ def crear(nombre: str) -> dict:
     return {"id": cursor.lastrowid, "nombre": nombre, "orden": orden, "simbolos": []}
 
 
+def reordenar(ids: list[int]) -> bool:
+    """Fija el orden de TODAS las listas según la secuencia recibida.
+
+    Mismo patrón que reemplazar_simbolos: el cliente manda el estado completo.
+    Si los ids no coinciden exactamente con los existentes, no se toca nada.
+    """
+    with _conexion() as conexion:
+        existentes = {fila[0] for fila in conexion.execute("SELECT id FROM listas")}
+        if set(ids) != existentes or len(ids) != len(existentes):
+            return False
+        conexion.executemany(
+            "UPDATE listas SET orden = ? WHERE id = ?",
+            [(posicion, id_) for posicion, id_ in enumerate(ids)],
+        )
+    return True
+
+
 def renombrar(lista_id: int, nombre: str) -> bool:
     with _conexion() as conexion:
         cursor = conexion.execute("UPDATE listas SET nombre = ? WHERE id = ?", (nombre, lista_id))

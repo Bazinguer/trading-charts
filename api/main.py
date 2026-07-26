@@ -45,6 +45,10 @@ class SimbolosEntrada(BaseModel):
     simbolos: list[str]
 
 
+class OrdenEntrada(BaseModel):
+    ids: list[int]
+
+
 class DatosEntrada(BaseModel):
     fuente: Literal["binance", "yahoo"]
     nombre: str
@@ -121,6 +125,14 @@ def obtener_listas() -> list[dict]:
 @protegido.post("/listas")
 def crear_lista(entrada: ListaEntrada) -> dict:
     return listas.crear(entrada.nombre)
+
+
+# Antes que /listas/{lista_id}: si no, "orden" se intentaría parsear como id.
+@protegido.put("/listas/orden")
+def reordenar_listas(entrada: OrdenEntrada) -> dict:
+    if not listas.reordenar(entrada.ids):
+        raise HTTPException(status_code=400, detail="Los ids no coinciden con las listas")
+    return {"orden": entrada.ids}
 
 
 @protegido.put("/listas/{lista_id}")

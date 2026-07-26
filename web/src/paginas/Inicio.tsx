@@ -565,6 +565,7 @@ export function Inicio() {
   const [nombreNuevo, setNombreNuevo] = useState("")
   const [renombrar, setRenombrar] = useState<Lista | null>(null)
   const [nombreEditado, setNombreEditado] = useState("")
+  const [arrastrando, setArrastrando] = useState<number | null>(null)
   const [visiblesPorLista, setVisiblesPorLista] =
     useState<VisibilidadPorLista>(cargarVisibilidadPorLista)
 
@@ -644,6 +645,19 @@ export function Inicio() {
     void ejecutar(() => apiDelete(`/api/listas/${lista.id}`))
   }
 
+  // Reordenar tabs arrastrando (drag & drop nativo, convención TradingView).
+  const soltarSobre = (destino: Lista) => {
+    if (arrastrando === null || arrastrando === destino.id || !listas) return
+    const ids = listas.map((l) => l.id)
+    const desde = ids.indexOf(arrastrando)
+    const hasta = ids.indexOf(destino.id)
+    ids.splice(hasta, 0, ...ids.splice(desde, 1))
+    const porId = new Map(listas.map((l) => [l.id, l]))
+    // Optimista: el tab se recoloca ya; cargar() tras el PUT confirma o revierte.
+    setListas(ids.map((id) => porId.get(id)!))
+    void ejecutar(() => apiPut("/api/listas/orden", { ids }))
+  }
+
   if (listas === null) {
     return (
       <div className="flex flex-col gap-4">
@@ -688,9 +702,16 @@ export function Inicio() {
               <TabsTrigger
                 key={l.id}
                 value={String(l.id)}
+                draggable
+                onDragStart={() => setArrastrando(l.id)}
+                onDragEnd={() => setArrastrando(null)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => soltarSobre(l)}
                 // flex-none y border-0 neutralizan el flex-1 y el borde 1px del
                 // primitivo pill; tailwind-merge conserva el border-b-2 posterior.
-                className="relative flex-none rounded-none border-0 border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-muted-foreground transition-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                className={`relative flex-none cursor-grab rounded-none border-0 border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-muted-foreground transition-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none ${
+                  arrastrando === l.id ? "opacity-50" : ""
+                }`}
               >
                 {l.nombre}
               </TabsTrigger>
