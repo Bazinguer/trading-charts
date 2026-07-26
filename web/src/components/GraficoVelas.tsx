@@ -38,11 +38,13 @@ import type { EntradaCatalogo, Indicador } from "@/lib/indicadores"
 
 type Velas = { timestamp: number; open: number; high: number; low: number; close: number; volume: number }[]
 
-export type Intervalo = "1d" | "1w" | "1M"
+export type Intervalo = "1h" | "4h" | "1d" | "1w" | "1M"
 export type TipoGrafico = "velas" | "linea"
 
 // El período le dice a KLineChart cómo formatear fechas en crosshair/tooltip.
-const PERIODOS: Record<Intervalo, { span: number; type: "day" | "month" }> = {
+const PERIODOS: Record<Intervalo, { span: number; type: "hour" | "day" | "month" }> = {
+  "1h": { span: 1, type: "hour" },
+  "4h": { span: 4, type: "hour" },
   "1d": { span: 1, type: "day" },
   "1w": { span: 7, type: "day" },
   "1M": { span: 1, type: "month" },
@@ -187,6 +189,8 @@ export function GraficoVelas({
     let cancelado = false
 
     const arrancar = async () => {
+      // La primera petición intradía descarga el histórico: puede tardar.
+      setEstado("Cargando velas…")
       let velas: Velas
       try {
         velas = await api<Velas>(`/api/velas/${encodeURIComponent(simbolo)}?intervalo=${intervalo}`)
@@ -195,6 +199,7 @@ export function GraficoVelas({
         return
       }
       if (cancelado) return
+      setEstado("")
 
       const chart = init(contenedor)
       if (!chart) return

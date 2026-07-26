@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button"
 import { api, type ResumenSimbolo } from "@/lib/api"
 
 const INTERVALOS: { valor: Intervalo; etiqueta: string }[] = [
+  { valor: "1h", etiqueta: "1H" },
+  { valor: "4h", etiqueta: "4H" },
   { valor: "1d", etiqueta: "1D" },
   { valor: "1w", etiqueta: "1S" },
   { valor: "1M", etiqueta: "1M" },

@@ -22,12 +22,16 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
   el análisis hecho en diario se ve también en semanal. Los indicadores
   activos (nombre + calcParams + panel) se guardan igual: por símbolo, junto
   a los dibujos, con el mismo botón de guardar. Máximo uno por nombre.
-- Datos multi-fuente: velas 1d de Binance (`api/datos.py`, incremental) y de
-  Yahoo (`api/datos_yahoo.py`, acciones/índices/ETFs/fondos, OHLC ajustado por
-  splits+dividendos — patrón heredado de stocks_lab); todo en parquet con el
-  mismo contrato de columnas; el semanal se agrega desde el diario (una sola
-  fuente de verdad en disco). Al añadir un símbolo por el buscador se descarga
-  su histórico automáticamente. Cobertura de fondos UCITS en Yahoo: irregular.
+- Datos multi-fuente: velas de Binance (`api/datos.py`, incremental) y de
+  Yahoo (`api/datos_yahoo.py`, acciones/índices/ETFs/fondos; el diario con
+  OHLC ajustado por splits+dividendos — patrón heredado de stocks_lab); todo
+  en parquet con el mismo contrato de columnas. UNA fuente de verdad POR
+  FAMILIA en disco: del 1d se agregan 1w y 1M; del 1h se agrega el 4h. El 1h
+  se descarga bajo demanda la primera vez que se pide (ventana ~2 años,
+  simétrica con el límite intradía de Yahoo; en Yahoo las descargas sucesivas
+  ACUMULAN histórico local y llegan sin ajuste por splits). Al añadir un
+  símbolo por el buscador se descarga su histórico diario automáticamente.
+  Cobertura de fondos UCITS en Yahoo: irregular.
 - BD de dibujos: SQLite `data/dibujos.db`. En producción irá en volumen con
   backup — perder dibujos es perder el propósito del proyecto. Las listas de
   seguimiento viven en la misma BD (tablas `listas` y `lista_simbolos`).

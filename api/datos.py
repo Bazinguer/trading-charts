@@ -1,8 +1,10 @@
-"""Descarga de velas diarias desde la API pública de Binance.
+"""Descarga de velas (diarias y 1h) desde la API pública de Binance.
 
-Guarda cada serie en data/{símbolo}_1d.parquet. Si el fichero ya existe,
-continúa desde la última vela guardada (descarga incremental), por lo que se
-puede relanzar cuantas veces se quiera sin re-descargar todo.
+Guarda cada serie en data/{símbolo}_{intervalo}.parquet. Si el fichero ya
+existe, continúa desde la última vela guardada (descarga incremental), por lo
+que se puede relanzar cuantas veces se quiera sin re-descargar todo. El 1h
+arranca en una ventana de ~2 años (DESDE_INTRADIA): basta para AT intradía y
+es simétrico con el límite de Yahoo.
 
 Mismo contrato de columnas que crypto_lab (open_time UTC + OHLCV); las
 acciones e índices (API de Yahoo) viven en api/datos_yahoo.py con el mismo
@@ -11,6 +13,7 @@ contrato y la misma ruta de parquet.
 Uso:
     uv run python -m api.datos
     uv run python -m api.datos --symbol ETHUSDT --desde 2020-01-01
+    uv run python -m api.datos --symbol BTCUSDT --intervalo 1h
 """
 
 import argparse
@@ -28,6 +31,12 @@ DESDE = "2017-08-01"  # BTCUSDT cotiza en Binance desde 2017-08-17
 
 SIMBOLOS = ["BTCUSDT", "ETHUSDT"]
 
+
+def desde_intradia() -> str:
+    """Inicio por defecto del histórico 1h: ~2 años atrás."""
+    return (pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=729)).strftime("%Y-%m-%d")
+
+
 COLUMNAS_API = [
     "open_time",
     "open",
@@ -44,13 +53,13 @@ COLUMNAS_API = [
 ]
 
 
-def ruta_parquet(simbolo: str) -> Path:
-    """Ruta única del parquet diario de un símbolo, sea cual sea su fuente.
+def ruta_parquet(simbolo: str, intervalo: str = INTERVALO) -> Path:
+    """Ruta única del parquet de un símbolo e intervalo, sea cual sea su fuente.
 
     Sanea el `^` de los índices de Yahoo (^GSPC → idx_GSPC) para no meter
     caracteres incómodos en nombres de fichero (patrón de stocks_lab).
     """
-    return DATA_DIR / f"{simbolo.replace('^', 'idx_')}_{INTERVALO}.parquet"
+    return DATA_DIR / f"{simbolo.replace('^', 'idx_')}_{intervalo}.parquet"
 
 
 def _a_dataframe(filas: list[list]) -> pd.DataFrame:
@@ -62,7 +71,9 @@ def _a_dataframe(filas: list[list]) -> pd.DataFrame:
     return df
 
 
-def descargar(symbol: str, desde_ms: int, cliente: httpx.Client) -> pd.DataFrame:
+def descargar(
+    symbol: str, desde_ms: int, cliente: httpx.Client, intervalo: str = INTERVALO
+) -> pd.DataFrame:
     """Descarga velas desde `desde_ms` (epoch ms) hasta el presente, paginando."""
     paginas = []
     while True:
@@ -70,7 +81,7 @@ def descargar(symbol: str, desde_ms: int, cliente: httpx.Client) -> pd.DataFrame
             API_URL,
             params={
                 "symbol": symbol,
-                "interval": INTERVALO,
+                "interval": intervalo,
                 "startTime": desde_ms,
                 "limit": MAX_VELAS_POR_PETICION,
             },
@@ -91,9 +102,9 @@ def descargar(symbol: str, desde_ms: int, cliente: httpx.Client) -> pd.DataFrame
     return _a_dataframe([fila for pagina in paginas for fila in pagina])
 
 
-def actualizar(symbol: str, desde: str) -> Path:
-    """Descarga (o completa) el histórico diario y lo guarda en parquet."""
-    destino = ruta_parquet(symbol)
+def actualizar(symbol: str, desde: str, intervalo: str = INTERVALO) -> Path:
+    """Descarga (o completa) el histórico del intervalo y lo guarda en parquet."""
+    destino = ruta_parquet(symbol, intervalo)
     existente = pd.read_parquet(destino) if destino.exists() else None
 
     if existente is not None and not existente.empty:
@@ -105,7 +116,7 @@ def actualizar(symbol: str, desde: str) -> Path:
         desde_ms = int(pd.Timestamp(desde, tz="UTC").timestamp() * 1000)
 
     with httpx.Client(timeout=30) as cliente:
-        nuevas = descargar(symbol, desde_ms, cliente)
+        nuevas = descargar(symbol, desde_ms, cliente, intervalo)
 
     if nuevas.empty and existente is None:
         raise SystemExit(f"La API no devolvió datos para {symbol} desde {desde}")
@@ -120,10 +131,12 @@ def actualizar(symbol: str, desde: str) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--symbol", help="Un símbolo concreto; por defecto, todos")
-    parser.add_argument("--desde", default=DESDE, help="Fecha de inicio (YYYY-MM-DD)")
+    parser.add_argument("--desde", help="Fecha de inicio (YYYY-MM-DD)")
+    parser.add_argument("--intervalo", default=INTERVALO, choices=["1d", "1h"])
     args = parser.parse_args()
+    desde = args.desde or (DESDE if args.intervalo == "1d" else desde_intradia())
     for symbol in [args.symbol] if args.symbol else SIMBOLOS:
-        actualizar(symbol, args.desde)
+        actualizar(symbol, desde, args.intervalo)
 
 
 if __name__ == "__main__":

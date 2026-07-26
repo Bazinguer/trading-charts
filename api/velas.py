@@ -1,29 +1,47 @@
 """Lectura de velas desde los parquet locales, en el formato que espera KLineChart.
 
-Cada vela sale como {timestamp(ms), open, high, low, close, volume}. Ni el
-semanal ni el mensual se descargan: se agregan desde el diario (semanas
-lunes-domingo con timestamp = lunes de apertura; meses con timestamp = día 1),
-así solo hay UNA fuente de verdad en disco.
+Cada vela sale como {timestamp(ms), open, high, low, close, volume}. Una
+fuente de verdad POR FAMILIA en disco: del diario se agregan semanal (semanas
+lunes-domingo, timestamp = lunes) y mensual (timestamp = día 1); del 1h se
+agrega el 4h (bloques alineados a 00 UTC). El parquet 1h se descarga bajo
+demanda la primera vez que se pide (Binance o Yahoo según la fuente del
+símbolo) y después se completa incremental.
 """
 
 import pandas as pd
 
-from api import cotizaciones
+from api import cotizaciones, datos, datos_yahoo, simbolos
 from api.datos import ruta_parquet
 
-INTERVALOS = ("1d", "1w", "1M")
+INTERVALOS = ("1h", "4h", "1d", "1w", "1M")
+
+
+def _asegurar_1h(simbolo: str) -> None:
+    """Descarga el histórico 1h si aún no existe (primera vez que se pide)."""
+    if ruta_parquet(simbolo, "1h").exists():
+        return
+    fuente = simbolos.fuentes([simbolo]).get(simbolo, "binance")
+    if fuente == "yahoo":
+        datos_yahoo.actualizar(simbolo, "1h")
+    else:
+        datos.actualizar(simbolo, datos.desde_intradia(), "1h")
 
 
 def cargar(simbolo: str, intervalo: str) -> list[dict]:
     if intervalo not in INTERVALOS:
         raise ValueError(f"Intervalo no soportado: {intervalo}")
 
-    destino = ruta_parquet(simbolo)
+    base = "1h" if intervalo in ("1h", "4h") else "1d"
+    if base == "1h":
+        _asegurar_1h(simbolo)
+    destino = ruta_parquet(simbolo, base)
     if not destino.exists():
         raise FileNotFoundError(f"No hay datos de {simbolo}. Descárgalos con: make datos")
 
     df = pd.read_parquet(destino)
-    if intervalo == "1w":
+    if intervalo == "4h":
+        df = _agregar(df, "4h")
+    elif intervalo == "1w":
         df = _agregar(df, "W-MON", label="left", closed="left")
     elif intervalo == "1M":
         df = _agregar(df, "MS")

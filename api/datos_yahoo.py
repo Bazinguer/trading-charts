@@ -25,16 +25,19 @@ CABECERAS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 DESDE = pd.Timestamp("1990-01-01", tz="UTC")
 
 
-def descargar(ticker: str, cliente: httpx.Client) -> pd.DataFrame:
-    """Descarga el histórico diario completo de un ticker, ajustado por
-    splits y dividendos (OHLC reescalado por adjclose/close)."""
+def descargar(ticker: str, cliente: httpx.Client, intervalo: str = "1d") -> pd.DataFrame:
+    """Descarga el histórico de un ticker; el diario, ajustado por splits y
+    dividendos (OHLC reescalado por adjclose/close). El 1h se limita a la
+    ventana que Yahoo permite (~730 días) y llega sin adjclose: se guarda tal
+    cual (un split reciente introduciría un escalón en lo ya acumulado)."""
+    desde = DESDE if intervalo == "1d" else pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=729)
     try:
         respuesta = cliente.get(
             API_URL.format(ticker=ticker),
             params={
-                "period1": int(DESDE.timestamp()),
+                "period1": int(desde.timestamp()),
                 "period2": int(pd.Timestamp.now(tz="UTC").timestamp()),
-                "interval": "1d",
+                "interval": intervalo,
             },
         )
         respuesta.raise_for_status()
@@ -49,6 +52,7 @@ def descargar(ticker: str, cliente: httpx.Client) -> pd.DataFrame:
         raise ValueError(f"Yahoo no devolvió velas para {ticker}")
 
     velas = resultado["indicators"]["quote"][0]
+    adjclose = (resultado["indicators"].get("adjclose") or [{}])[0].get("adjclose")
     df = pd.DataFrame(
         {
             "open_time": pd.to_datetime(resultado["timestamp"], unit="s", utc=True),
@@ -57,31 +61,46 @@ def descargar(ticker: str, cliente: httpx.Client) -> pd.DataFrame:
             "low": velas["low"],
             "close": velas["close"],
             "volume": velas["volume"],
-            "adjclose": resultado["indicators"]["adjclose"][0]["adjclose"],
         }
-    ).dropna(subset=["close", "adjclose"])
+    ).dropna(subset=["close"])
 
-    # Vela diaria: nos quedamos con la fecha (el timestamp de Yahoo es la
-    # apertura de sesión, cambia con los horarios de verano y no aporta).
-    df["open_time"] = df["open_time"].dt.normalize()
-    factor = df["adjclose"] / df["close"]
-    for col in ["open", "high", "low", "close"]:
-        df[col] = df[col] * factor
+    if intervalo == "1d" and adjclose is not None:
+        df["adjclose"] = pd.Series(adjclose).reindex(df.index)
+        df = df.dropna(subset=["adjclose"])
+        # Vela diaria: nos quedamos con la fecha (el timestamp de Yahoo es la
+        # apertura de sesión, cambia con los horarios de verano y no aporta).
+        df["open_time"] = df["open_time"].dt.normalize()
+        factor = df["adjclose"] / df["close"]
+        for col in ["open", "high", "low", "close"]:
+            df[col] = df[col] * factor
+        df = df.drop(columns=["adjclose"])
     # Índices y fondos pueden venir sin volumen: 0 en vez de NaN (que rompería el JSON)
     df["volume"] = df["volume"].fillna(0)
     return (
-        df.drop(columns=["adjclose"])
-        .sort_values("open_time")
+        df.sort_values("open_time")
         .reset_index(drop=True)
         .astype({c: float for c in ["open", "high", "low", "close", "volume"]})
     )
 
 
-def actualizar(ticker: str) -> Path:
-    """Descarga y guarda el histórico completo de un ticker en su parquet."""
+def actualizar(ticker: str, intervalo: str = "1d") -> Path:
+    """Descarga y guarda el histórico de un ticker en su parquet.
+
+    El diario reemplaza el fichero entero (llega completo y re-ajustado). El
+    1h ACUMULA sobre lo ya guardado: Yahoo solo sirve ~730 días, pero las
+    descargas sucesivas van extendiendo el histórico local.
+    """
     with httpx.Client(timeout=30, headers=CABECERAS) as cliente:
-        df = descargar(ticker, cliente)
+        df = descargar(ticker, cliente, intervalo)
     DATA_DIR.mkdir(exist_ok=True)
-    destino = ruta_parquet(ticker)
+    destino = ruta_parquet(ticker, intervalo)
+    if intervalo != "1d" and destino.exists():
+        previo = pd.read_parquet(destino)
+        df = (
+            pd.concat([previo, df], ignore_index=True)
+            .drop_duplicates(subset=["open_time"], keep="last")
+            .sort_values("open_time")
+            .reset_index(drop=True)
+        )
     df.to_parquet(destino, index=False)
     return destino
