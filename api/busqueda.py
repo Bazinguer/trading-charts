@@ -1,7 +1,7 @@
-"""Búsqueda unificada de símbolos: pares USDT de Binance + buscador de Yahoo.
+"""Búsqueda unificada de símbolos: pares USDT/USDC de Binance + buscador de Yahoo.
 
 Binance no tiene endpoint de búsqueda: se descarga el catálogo completo de
-exchangeInfo (pares USDT en TRADING) y se cachea 24h en
+exchangeInfo (pares USDT/USDC en TRADING) y se cachea 24h en
 data/binance_simbolos.json. Yahoo sí lo tiene (/v1/finance/search) y se
 consulta en vivo. Ninguna de las dos fuentes debe romper la búsqueda: si una
 falla, se devuelve lo que haya de la otra.
@@ -29,6 +29,10 @@ CACHE_BINANCE = DATA_DIR / "binance_simbolos.json"
 CACHE_SEGUNDOS = 24 * 3600
 MAX_RESULTADOS = 20
 
+# USDT por su histórico largo (BTCUSDT desde 2017); USDC porque es el quote
+# que se opera en la EEA desde MiCA (los pares spot USDT se retiraron en 2025).
+QUOTES_BINANCE = ("USDT", "USDC")
+
 TIPOS_YAHOO = {"EQUITY": "accion", "ETF": "etf", "INDEX": "indice", "MUTUALFUND": "fondo"}
 
 # Meta de fondos ya consultado (ticker -> {nombre, divisa}); vive lo que el proceso.
@@ -38,12 +42,13 @@ _META_FONDOS: dict[str, dict] = {}
 def buscar(q: str) -> list[dict]:
     """Resultados combinados [{simbolo, nombre, tipo, fuente}], sin duplicados.
 
-    Si q parece un par de Binance (contiene USDT) la cripto va primero; si no,
-    manda lo de Yahoo, que es lo que se suele estar buscando por nombre.
+    Si q parece un par de Binance (contiene USDT o USDC) la cripto va primero;
+    si no, manda lo de Yahoo, que es lo que se suele estar buscando por nombre.
     """
     cripto = _buscar_binance(q)
     bolsa = _buscar_yahoo(q)
-    combinados = cripto + bolsa if "USDT" in q.upper() else bolsa + cripto
+    es_par = any(quote in q.upper() for quote in QUOTES_BINANCE)
+    combinados = cripto + bolsa if es_par else bolsa + cripto
     vistos: set[str] = set()
     resultados = []
     for fila in combinados:
@@ -54,7 +59,7 @@ def buscar(q: str) -> list[dict]:
 
 
 def _catalogo_binance() -> list[dict]:
-    """Pares USDT en TRADING; del cache si tiene menos de 24h."""
+    """Pares USDT/USDC en TRADING; del cache si tiene menos de 24h."""
     if CACHE_BINANCE.exists() and time.time() - CACHE_BINANCE.stat().st_mtime < CACHE_SEGUNDOS:
         return json.loads(CACHE_BINANCE.read_text())
     with httpx.Client(timeout=30) as cliente:
@@ -64,7 +69,7 @@ def _catalogo_binance() -> list[dict]:
     pares = [
         {"simbolo": s["symbol"], "nombre": s["baseAsset"], "tipo": "cripto", "fuente": "binance"}
         for s in info["symbols"]
-        if s["quoteAsset"] == "USDT" and s["status"] == "TRADING"
+        if s["quoteAsset"] in QUOTES_BINANCE and s["status"] == "TRADING"
     ]
     DATA_DIR.mkdir(exist_ok=True)
     CACHE_BINANCE.write_text(json.dumps(pares))
