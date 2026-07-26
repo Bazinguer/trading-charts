@@ -1,0 +1,18 @@
+[
+  {
+    "branch": "feature/ai-agent",
+    "path": "../chat-bot-web-feature-ai-agent",
+    "created": "2025-08-23T18:22:53+02:00",
+    "port_offset": 23,
+    "ports_mapped": 10,
+    "cache_shared": true
+  },
+  {
+    "branch": "fix/crud-widg",
+    "path": "../chat-bot-web-fix-crud-widg",
+    "created": "2025-08-23T18:58:29+02:00",
+    "port_offset": 28,
+    "ports_mapped": 10,
+    "cache_shared": true
+  }
+]

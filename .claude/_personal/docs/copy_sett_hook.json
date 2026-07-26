@@ -1,0 +1,144 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "Bash(sudo apt:*)",
+      "Bash(sudo apt install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(mv:*)",
+      "Bash(find:*)",
+      "Bash(make:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(docker-compose restart:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "Bash(docker-compose:*)",
+      "Bash(curl:*)",
+      "Bash(docker port:*)",
+      "Bash(docker volume rm:*)",
+      "Bash(true)",
+      "Bash(echo:*)",
+      "Bash(ls:*)",
+      "Bash(chmod:*)",
+      "Bash(touch:*)",
+      "mcp__tavily-mcp__tavily-search",
+      "Bash(psql:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker restart:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker start:*)",
+      "Bash(grep \"include_router\" /home/jombotix/workspace/chat-bot-web/backend/app/main.py)",
+      "Bash(docker volume prune:*)",
+      "Bash(docker system prune:*)",
+      "Bash(grep:*)",
+      "Bash(timeout 10 curl -X GET \"http://localhost:8000/api/templates\" -H \"accept: application/json\" -v)",
+      "Bash(pkill:*)",
+      "Bash(npm:*)",
+      "Bash(cp:*)"
+    ],
+    "deny": []
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "/home/jombotix/workspace/chat-bot-web/.claude/statusline/statusline.py",
+    "padding": 0
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run /home/jombotix/workspace/chat-bot-web/.claude/hooks/default_log_system/pre_tool_use.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run /home/jombotix/workspace/chat-bot-web/.claude/hooks/default_log_system/post_tool_use.py"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run /home/jombotix/workspace/chat-bot-web/.claude/hooks/default_log_system/notification.py --notify"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run /home/jombotix/workspace/chat-bot-web/.claude/hooks/default_log_system/stop.py --chat --notify"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run /home/jombotix/workspace/chat-bot-web/.claude/hooks/default_log_system/subagent_stop.py --notify"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run /home/jombotix/workspace/chat-bot-web/.claude/hooks/default_log_system/user_prompt_submit.py --log-only --store-last-prompt --name-agent"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run /home/jombotix/workspace/chat-bot-web/.claude/hooks/default_log_system/pre_compact.py"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/jombotix/workspace/chat-bot-web/.claude/_personal/scripts/init-claude.sh"
+          },
+          {
+            "type": "command",
+            "command": "uv run /home/jombotix/workspace/chat-bot-web/.claude/hooks/default_log_system/session_start.py"
+          }
+        ]
+      }
+    ]
+  }
+}

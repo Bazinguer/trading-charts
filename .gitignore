@@ -14,6 +14,8 @@ web/dist/
 .env
 .env.dokploy
 .playwright-mcp/
+# Config de Claude Code por máquina (el resto de .claude/ sí se versiona)
+.claude/settings.local.json
 
 # Backups de producción (make -f Makefile.dev backup-prd)
 backups/
