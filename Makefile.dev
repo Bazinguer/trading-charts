@@ -7,8 +7,9 @@
 # deploy con: ssh $(PRD_SSH) "docker ps --format '{{.Names}}'"
 
 PRD_SSH := ssh-bazinguer-vps
-# Dokploy genera <proyecto>-<hash6>-charts-1; RELLENAR tras el primer deploy:
-PRD_CONTENEDOR := trading-charts-XXXXXX-charts-1
+# Nombre generado por Dokploy (cambia si se recrea el project — verificar
+# con: ssh $(PRD_SSH) "docker ps" si backup-prd falla):
+PRD_CONTENEDOR := trading-charts-2hwnph-charts-1
 BACKUP_DIR := backups
 
 .PHONY: backup-prd restore-prd
