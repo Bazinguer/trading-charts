@@ -19,26 +19,12 @@ CREATE TABLE IF NOT EXISTS simbolos (
 )
 """
 
-SEMILLA = [
-    ("BTCUSDT", "Bitcoin", "cripto", "binance"),
-    ("ETHUSDT", "Ethereum", "cripto", "binance"),
-]
-
 
 def _conexion() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(exist_ok=True)
     conexion = sqlite3.connect(DB_PATH)
     conexion.execute(_ESQUEMA)
     return conexion
-
-
-def asegurar_semilla() -> None:
-    """Registra los símbolos iniciales si aún no existen (idempotente)."""
-    with _conexion() as conexion:
-        conexion.executemany(
-            "INSERT OR IGNORE INTO simbolos (simbolo, nombre, tipo, fuente) VALUES (?, ?, ?, ?)",
-            SEMILLA,
-        )
 
 
 def registrar(simbolo: str, nombre: str, tipo: str, fuente: str) -> None:

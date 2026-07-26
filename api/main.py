@@ -15,9 +15,6 @@ from api import busqueda, datos, datos_yahoo, dibujos, listas, sesion, simbolos,
 app = FastAPI(title="charts", docs_url=None, redoc_url=None)
 app.include_router(sesion.router)
 
-listas.asegurar_semilla()
-simbolos.asegurar_semilla()
-
 protegido = APIRouter(prefix="/api", dependencies=[Depends(sesion.sesion_requerida)])
 
 

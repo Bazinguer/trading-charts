@@ -24,29 +24,12 @@ CREATE TABLE IF NOT EXISTS lista_simbolos (
 );
 """
 
-SEMILLA_NOMBRE = "Cripto"
-SEMILLA_SIMBOLOS = ["BTCUSDT", "ETHUSDT"]
-
 
 def _conexion() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(exist_ok=True)
     conexion = sqlite3.connect(DB_PATH)
     conexion.executescript(_ESQUEMA)
     return conexion
-
-
-def asegurar_semilla() -> None:
-    """Si no hay ninguna lista (primer arranque), crea la de ejemplo."""
-    with _conexion() as conexion:
-        if conexion.execute("SELECT COUNT(*) FROM listas").fetchone()[0]:
-            return
-        cursor = conexion.execute(
-            "INSERT INTO listas (nombre, orden) VALUES (?, 0)", (SEMILLA_NOMBRE,)
-        )
-        conexion.executemany(
-            "INSERT INTO lista_simbolos (lista_id, simbolo, orden) VALUES (?, ?, ?)",
-            [(cursor.lastrowid, simbolo, i) for i, simbolo in enumerate(SEMILLA_SIMBOLOS)],
-        )
 
 
 def obtener_todas() -> list[dict]:
