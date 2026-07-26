@@ -5,6 +5,13 @@ exchangeInfo (pares USDT en TRADING) y se cachea 24h en
 data/binance_simbolos.json. Yahoo sí lo tiene (/v1/finance/search) y se
 consulta en vivo. Ninguna de las dos fuentes debe romper la búsqueda: si una
 falla, se devuelve lo que haya de la otra.
+
+Los fondos son un caso aparte: Yahoo los busca bien por ISIN pero los devuelve
+sin nombre legible (el shortname ES el ticker 0P..., un Morningstar ID) y un
+mismo fondo cotiza en varias plazas con divisas distintas. Por eso cada
+resultado de tipo fondo se enriquece con el longName y la currency del meta
+del chart (mismo endpoint que la descarga de velas), con caché en memoria
+para no repetir peticiones mientras se teclea.
 """
 
 import json
@@ -17,11 +24,15 @@ from api.datos_yahoo import CABECERAS
 
 BINANCE_URL = "https://api.binance.com/api/v3/exchangeInfo"
 YAHOO_URL = "https://query1.finance.yahoo.com/v1/finance/search"
+CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
 CACHE_BINANCE = DATA_DIR / "binance_simbolos.json"
 CACHE_SEGUNDOS = 24 * 3600
 MAX_RESULTADOS = 20
 
 TIPOS_YAHOO = {"EQUITY": "accion", "ETF": "etf", "INDEX": "indice", "MUTUALFUND": "fondo"}
+
+# Meta de fondos ya consultado (ticker -> {nombre, divisa}); vive lo que el proceso.
+_META_FONDOS: dict[str, dict] = {}
 
 
 def buscar(q: str) -> list[dict]:
@@ -76,19 +87,40 @@ def _buscar_yahoo(q: str) -> list[dict]:
             respuesta = cliente.get(YAHOO_URL, params={"q": q})
             respuesta.raise_for_status()
             quotes = respuesta.json().get("quotes", [])
+            resultados = []
+            for quote in quotes:
+                tipo = TIPOS_YAHOO.get(quote.get("quoteType"))
+                if not tipo or not quote.get("symbol"):
+                    continue
+                fila = {
+                    "simbolo": quote["symbol"],
+                    "nombre": quote.get("shortname") or quote.get("longname") or quote["symbol"],
+                    "tipo": tipo,
+                    "fuente": "yahoo",
+                }
+                if tipo == "fondo":
+                    meta = _meta_fondo(fila["simbolo"], cliente)
+                    fila["nombre"] = meta.get("nombre") or fila["nombre"]
+                    fila["divisa"] = meta.get("divisa")
+                resultados.append(fila)
     except httpx.HTTPError:
         return []
-    resultados = []
-    for quote in quotes:
-        tipo = TIPOS_YAHOO.get(quote.get("quoteType"))
-        if not tipo or not quote.get("symbol"):
-            continue
-        resultados.append(
-            {
-                "simbolo": quote["symbol"],
-                "nombre": quote.get("shortname") or quote.get("longname") or quote["symbol"],
-                "tipo": tipo,
-                "fuente": "yahoo",
-            }
-        )
     return resultados
+
+
+def _meta_fondo(ticker: str, cliente: httpx.Client) -> dict:
+    """Nombre real y divisa de un fondo desde el meta del chart; {} si falla.
+
+    Un fallo no se cachea: la siguiente pulsación reintenta.
+    """
+    if ticker not in _META_FONDOS:
+        try:
+            respuesta = cliente.get(
+                CHART_URL.format(ticker=ticker), params={"range": "1d", "interval": "1d"}
+            )
+            respuesta.raise_for_status()
+            meta = (respuesta.json()["chart"]["result"] or [{}])[0].get("meta") or {}
+        except (httpx.HTTPError, KeyError, ValueError):
+            return {}
+        _META_FONDOS[ticker] = {"nombre": meta.get("longName"), "divisa": meta.get("currency")}
+    return _META_FONDOS[ticker]

@@ -78,6 +78,8 @@ export interface ResultadoBusqueda {
   nombre: string
   tipo: TipoActivo
   fuente: "binance" | "yahoo"
+  /** Solo fondos: divisa del listado (un mismo fondo cotiza en varias plazas). */
+  divisa?: string | null
 }
 
 export interface AnalisisGuardado {

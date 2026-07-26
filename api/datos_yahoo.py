@@ -76,6 +76,11 @@ def descargar(ticker: str, cliente: httpx.Client, intervalo: str = "1d") -> pd.D
         df = df.drop(columns=["adjclose"])
     # Índices y fondos pueden venir sin volumen: 0 en vez de NaN (que rompería el JSON)
     df["volume"] = df["volume"].fillna(0)
+    # Fondos: los NAV recientes llegan con open/high/low a 0 o ausentes (solo
+    # hay cierre); vela plana al cierre para no dibujar mechas hasta 0.
+    for col in ["open", "high", "low"]:
+        sin_dato = df[col].isna() | (df[col] <= 0)
+        df.loc[sin_dato, col] = df.loc[sin_dato, "close"]
     return (
         df.sort_values("open_time")
         .reset_index(drop=True)

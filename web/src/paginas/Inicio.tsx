@@ -254,7 +254,7 @@ function BuscadorSimbolo({
       <PopoverContent align="start" className="w-80 p-0">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Busca por símbolo o nombre…"
+            placeholder="Busca por símbolo, nombre o ISIN…"
             value={texto}
             onValueChange={setTexto}
           />
@@ -272,7 +272,7 @@ function BuscadorSimbolo({
                     ? "Escribe al menos 2 caracteres"
                     : buscando
                       ? "Buscando…"
-                      : "Sin resultados"}
+                      : "Sin resultados — los fondos se encuentran mejor por su ISIN"}
                 </CommandEmpty>
                 {resultados.length > 0 && (
                   <CommandGroup>
@@ -288,7 +288,11 @@ function BuscadorSimbolo({
                           <span className="font-medium">{r.simbolo}</span>
                           <span className="truncate text-muted-foreground">{r.nombre}</span>
                           <Badge variant="secondary" className="ml-auto shrink-0">
-                            {enLista ? "En la lista" : ETIQUETA_TIPO[r.tipo]}
+                            {enLista
+                              ? "En la lista"
+                              : r.divisa
+                                ? `${ETIQUETA_TIPO[r.tipo]} · ${r.divisa}`
+                                : ETIQUETA_TIPO[r.tipo]}
                           </Badge>
                         </CommandItem>
                       )
