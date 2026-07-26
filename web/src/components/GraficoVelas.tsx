@@ -11,6 +11,7 @@ import { SelectorIndicadores } from "@/components/SelectorIndicadores"
 import { Button } from "@/components/ui/button"
 import { useTema } from "@/contextos/tema"
 import { NIVELES_FIBONACCI, nivelesDeExtra, type ExtraFibonacci } from "@/lib/overlays"
+import { cn } from "@/lib/utils"
 
 // Diseño base del Fibonacci: los fibos nuevos parten de estos ajustes.
 const CLAVE_FIBO_BASE = "tc-fibo-base"
@@ -133,6 +134,8 @@ export function GraficoVelas({
   const contenedorRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<Chart | null>(null)
   const [estado, setEstado] = useState("")
+  // Mano cerrada mientras se arrastra el gráfico (estilo TradingView).
+  const [arrastrando, setArrastrando] = useState(false)
   const [indicadores, setIndicadores] = useState<Indicador[]>([])
   const [ajustesDe, setAjustesDe] = useState<string | null>(null)
   // Dibujo seleccionado en el lienzo (click sobre él): habilita borrado individual.
@@ -466,7 +469,13 @@ export function GraficoVelas({
       <BarraHerramientas onDibujar={dibujar} onGuardar={() => void guardar()} onLimpiar={limpiar} />
 
       <div className="relative min-w-0 flex-1">
-        <div ref={contenedorRef} className="h-full w-full" />
+        <div
+          ref={contenedorRef}
+          className={cn("h-full w-full", arrastrando && "[&_*]:!cursor-grabbing")}
+          onMouseDown={(e) => e.button === 0 && setArrastrando(true)}
+          onMouseUp={() => setArrastrando(false)}
+          onMouseLeave={() => setArrastrando(false)}
+        />
         {seleccionado && (
           <div className="absolute right-14 top-2 z-10 flex gap-1">
             {/* La regla no se ajusta: su verde/rojo indica dirección, es semántico */}
