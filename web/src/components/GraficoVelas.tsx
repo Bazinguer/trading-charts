@@ -274,26 +274,43 @@ export function GraficoVelas({
           ? "punteada"
           : "discontinua"
         : "continua"
-    setAjustesDibujo({
-      // Solo el fibonacci tiene niveles; su presencia activa esa fila del diálogo.
-      ...(seleccionado.name === "fibonacciLine"
-        ? { niveles: (vivo.extendData as ExtraFibonacci | undefined)?.niveles ?? NIVELES_FIBONACCI }
-        : {}),
-      color: linea?.color ?? null,
-      grosor: linea?.size,
-      estilo,
-    })
+    if (seleccionado.name === "fibonacciLine") {
+      // El fibo guarda su color en extendData: null = paleta multicolor por nivel.
+      const extra = vivo.extendData as ExtraFibonacci | undefined
+      setAjustesDibujo({
+        niveles: extra?.niveles ?? NIVELES_FIBONACCI,
+        color: extra?.color ?? null,
+        grosor: linea?.size,
+        estilo,
+      })
+      return
+    }
+    setAjustesDibujo({ color: linea?.color ?? null, grosor: linea?.size, estilo })
   }
 
   const cambiarAjustesDibujo = (cambios: AjustesForma) => {
     const chart = chartRef.current
     if (!chart || !seleccionado) return
-    chart.overrideOverlay({
-      id: seleccionado.id,
-      // extendData solo en el fibo: en anotaciones/etiquetas guarda su TEXTO.
-      ...(cambios.niveles ? { extendData: { niveles: cambios.niveles } } : {}),
-      styles: estilosDibujo(chart, cambios.color, cambios.grosor, cambios.estilo),
-    })
+    if (seleccionado.name === "fibonacciLine") {
+      // La plantilla del fibo resuelve colores por nivel; aquí solo viajan la
+      // config (extendData) y grosor/estilo de línea. Color null = multicolor.
+      chart.overrideOverlay({
+        id: seleccionado.id,
+        extendData: { niveles: cambios.niveles, color: cambios.color },
+        styles: {
+          line: {
+            size: cambios.grosor ?? 1,
+            style: cambios.estilo === "continua" ? "solid" : "dashed",
+            dashedValue: cambios.estilo === "punteada" ? [2, 3] : [8, 5],
+          },
+        },
+      })
+    } else {
+      chart.overrideOverlay({
+        id: seleccionado.id,
+        styles: estilosDibujo(chart, cambios.color, cambios.grosor, cambios.estilo),
+      })
+    }
     setAjustesDibujo(cambios)
   }
 
