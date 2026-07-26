@@ -2,57 +2,87 @@
 
 ## 🎯 Estado Actual del Proyecto
 
-FASE GRÁFICO COMPLETA y mergeada en `main` (dada por OK por el usuario).
-La app hace todo lo que se le pedía al gráfico: intervalos 1H/4H/1D/1S/1M,
-velas/línea, rejilla opcional, indicadores por símbolo con ajustes, barra de
-dibujo agrupada estilo Investing con 20 herramientas, fibonacci estilo
-TradingView configurable con diseño base, regla de medición, copiar/pegar y
-borrado individual de dibujos. Falta SOLO la infra para salir a producción
-(charts.bazinguer.es) — próxima sesión.
+**PRODUCCIÓN VIVA**: charts.bazinguer.es está desplegado y verificado E2E
+(11/11 tests, incluida la prueba reina: dibujar→guardar→F5→persiste). Fondos
+UCITS resueltos SOLO con Yahoo (Morningstar descartado por licencia/complejidad).
+La app hace todo lo pedido: gráfico con intervalos 1H/4H/1D/1S/1M, indicadores
+y dibujos por símbolo persistentes, barra de dibujo completa. Quedan flecos
+menores (ver Próximos Pasos) y ningún bloqueante.
 
 ## 📍 Última Sesión Completada
 
-### Fecha: 2026-07-25/26 (sesión larga de la fase gráfico)
+### Fecha: 2026-07-26 (sesión "fondos + salida a producción")
 
 ### Trabajo Completado:
 
-- ✅ Merge previo `feat/base-app` → `main`; todo lo de hoy en `feat/grafico`, mergeado también a `main` (13 commits, fast-forward)
-- ✅ Frecuencias: mensual (1M) agregado del diario; **intradía 1h/4h** — familia de parquet 1h con descarga BAJO DEMANDA la primera vez (ventana ~2 años; Binance incremental, Yahoo acumula sus 730 días en local, sin ajuste por splits en intradía) y 4h agregado del 1h. Principio actualizado: una fuente de verdad POR FAMILIA (1d→1w/1M, 1h→4h)
-- ✅ Tipo velas/línea + rejilla opcional (débil) con toggles en cabecera, persistidos en localStorage; estilos del chart por TEMA (tooltip legible en oscuro/claro)
-- ✅ Indicadores POR SÍMBOLO (decisión usuario): catálogo de 19 nativos, buscador Command, params editables, ⚙/✕ nativos en la leyenda de cada panel (tooltip features, posición middle por estabilidad), ajustes de color/grosor por línea; persistidos en dibujos.db junto a los dibujos (columna `indicadores`, migración aditiva verificada byte a byte)
-- ✅ Barra de dibujo reorganizada: Tendencia sola (más usada) + grupo Líneas con secciones (Libres/Horizontales/Verticales) + Canales/Fibonacci/Formas/Regla/Anotaciones/Pincel; iconos SVG propios estilo Investing (nodos) a 20px; botón Indicadores en la cabecera horizontal
-- ✅ Overlays propios/vendorizados (Apache-2.0, en `web/src/lib/overlays/`): rect/circle/triangle (de klinecharts/pro rama v10), measure (de react-klinecharts-ui, con fix propio de dataIndex al restaurar) y `fibonacciLine` que SUSTITUYE al incorporado: acotado a los dos puntos, bandas+diagonal+color por nivel (estilo TradingView), niveles ocultables (CSV en extendData: el merge de overrideOverlay fusiona arrays por índice y rompía), color/grosor/estilo por dibujo y "Fijar como diseño base" (localStorage `tc-fibo-base`)
-- ✅ UX de dibujos: selección → botones flotantes Ajustes/Borrar + Supr; Ctrl/Cmd+C/V copia y pega (offset 5 velas); cursor mano cerrada al arrastrar el gráfico
-- ✅ Todo verificado E2E con Playwright en cada rebanada; dibujos del usuario restaurados intactos tras cada prueba (backup + verificación byte a byte)
+- ✅ **Fondos UCITS resueltos, SOLO Yahoo**: Morningstar investigado y
+  DESCARTADO (Direct Web Services API / MCP exigen licencia institucional
+  Morningstar Direct ~10-17k$/año sin tier individual; `mstarpy` requiere
+  Chrome headed vía Selenium = complejidad inasumible). El buscador enriquece
+  fondos con `longName`/`currency` del meta del chart de Yahoo (los tickers
+  `0P...` llegan sin nombre), con caché en memoria; búsqueda por ISIN como
+  camino oficial. Fix de datos: NAV recientes con open/high/low a 0 → vela
+  plana al cierre. Ojo: el mapeo ISIN→ticker de Yahoo no siempre acierta
+  clase/divisa exacta (por eso se muestra la divisa en el badge). Verificado
+  E2E en dev con dibujos intactos byte a byte. Mergeado a main (`e725809`).
+- ✅ **Producción desplegada y verificada** — charts.bazinguer.es VIVO:
+  - Lienzo en blanco en PRD: semillas de listas/símbolos eliminadas
+    (`be23177`); mismo comportamiento dev y PRD.
+  - Infra (`1499500`): FastAPI sirve la SPA (catch-all tras routers,
+    `/api/salud` sin auth, cookie Secure con `CHARTS_HTTPS=1`), Dockerfile
+    multi-stage (node 22 → uv python3.12-slim), `deploy.yml` manual a GHCR
+    (confirm=yes, solo main, tags latest+sha), `ci.yml` de lint,
+    `docker-compose.dokploy.yml` con runbook en cabecera (volumen RW
+    `../files/trading-charts-data:/app/data`, Traefik letsencrypt, healthcheck
+    python3, custom deploy command `--pull always`), `.env.dokploy.example`,
+    `Makefile.dev` con `backup-prd`/`restore-prd` (doctrina anime-log).
+  - Repo GitHub `Bazinguer/trading-charts` (privado, PAT en el remote, patrón
+    de la casa); imagen publicada vía Actions.
+  - Deploy en Dokploy del VPS Hetzner (mismo VPS que anime + bot, decisión del
+    usuario): contenedor `trading-charts-2hwnph-charts-1` healthy, TLS Let's
+    Encrypt, Traefik sin errores.
+  - **E2E EN PRODUCCIÓN 11/11 PASS**: login HTTPS, lienzo en blanco, crear
+    lista, añadir BTCUSDT, velas, DIBUJAR→GUARDAR→F5→PERSISTE (la prueba
+    reina), limpieza completa. BTCUSDT quedó registrado con histórico en PRD
+    (útil, no residuo).
+  - **Backup estrenado**: `make -f Makefile.dev backup-prd` →
+    `backups/dibujos_prd_20260726_191615.db`, integrity_check ok. Credenciales
+    PRD en `.env.dokploy` local (gitignored).
+  - `.claude/` pasa a trackearse en git (decisión del usuario, `a245a4e`;
+    excluido `settings.local.json`).
 
 ### Estado al Finalizar:
 
-- `main` = fase gráfico completa; rama `feat/grafico` puede borrarse cuando se quiera
-- BD dev: BTCUSDT con sus 3 dibujos originales; parquets nuevos `*_1h.parquet` en data/ (ignorados por git)
-- `.claude/` sigue untracked; skills/agents heredados aún con referencias a otros proyectos (adaptar al usarlos)
+- `main` al día, working tree limpio, 1 commit por delante de `origin/main`
+  (pendiente de `push` por el principal).
+- charts.bazinguer.es en producción, healthy, con backup de dibujos probado.
+- BD dev: BTCUSDT con sus 3 dibujos originales; BD PRD: BTCUSDT con dibujos
+  de la prueba E2E (limpiados) + su histórico descargado.
 
 ### Próximos Pasos Sugeridos:
 
-1. **SESIÓN INFRA PRD** (charts.bazinguer.es). Decisión del usuario: PRD arranca
-   con LIENZO EN BLANCO TOTAL — 0 listas y 0 dibujos. Ojo: `api/main.py` llama
-   `listas.asegurar_semilla()` y `simbolos.asegurar_semilla()` → revisar que en
-   PRD no siembren nada (o vaciar las semillas). Además: Docker + `make build`,
-   `.env` de producción (CHARTS_USUARIO/PASSWORD/SECRET nuevos), y el VOLUMEN
-   persistente con BACKUP para `data/dibujos.db` (innegociable — perder dibujos
-   es perder el proyecto).
-2. Validación local opcional por el usuario antes de salir (la fase gráfico ya
-   está dada por OK).
-3. Flecos de datos: probar los fondos UCITS reales en el buscador (tickers
-   `0P0000...`, cobertura Yahoo irregular) y re-añadir SOLUSD desde el buscador
-   (está sin datos en la lista "indices").
-4. Decidir si se trackea `.claude/` en git.
+1. UX menor: tras "Cerrar sesión" la SPA tarda una navegación en redirigir a
+   `/login` (se ve un instante el shell con error 401); fix: `navigate('/login')`
+   tras el logout.
+2. Probar los fondos UCITS reales del usuario en PRD (buscar por ISIN).
+3. Re-añadir SOLUSD desde el buscador (sin datos en la lista "indices" de dev).
+4. Skills/agents de `.claude/` heredados: adaptar referencias de otros
+   proyectos al usarlos.
 
 ---
-
-## [FIN DE SESIÓN - BREAKPOINT]
+🔴 [FIN DE SESIÓN - BREAKPOINT]
+📅 Fecha: 2026-07-26
+🎯 Estado: Producción viva y verificada; sin bloqueantes, solo flecos menores.
+⏭️  Retomar: fix del `navigate('/login')` tras logout, o abordar los flecos
+    de datos (fondos UCITS reales / SOLUSD) según lo que priorice el usuario.
+---
 
 ## 📝 Sesiones Anteriores (Resumen)
 
+- 2026-07-25/26: fase gráfico completa (intervalos 1H/4H/1D/1S/1M,
+  velas/línea, rejilla, indicadores y dibujos por símbolo con overlays
+  propios/vendorizados, fibonacci estilo TradingView, barra de dibujo
+  agrupada) — dada por OK, mergeada a main.
 - 2026-07-24: bases de la app (login, shell, listas con cotizaciones live
   multi-fuente, página de análisis, gráfico del prototipo integrado).
 
@@ -78,3 +108,9 @@ por símbolo, una fuente de verdad por familia de intervalos, auth de usuario
   día en curso) — no "arreglar" eso sin entender por qué está así.
 - El diseño base del fibo y las preferencias de visualización viven en
   localStorage del navegador (tc-fibo-base, tc-tipo-grafico, tc-rejilla).
+- **Deploy de nueva versión**: merge a main → Actions "Deploy" (confirm=yes)
+  → Dokploy Deploy (el custom command hace `--pull always`).
+- **`backup-prd` ANTES** de cambios arriesgados y después de análisis
+  importantes; el contenedor PRD es `trading-charts-2hwnph-charts-1` (si se
+  recrea el project en Dokploy, cambia el hash → actualizar `Makefile.dev`).
+- El primer arranque con volumen nuevo crea `dibujos.db` vacía automáticamente.
