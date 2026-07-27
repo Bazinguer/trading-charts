@@ -7,8 +7,9 @@ import { RELLENO_FORMAS } from "@/lib/overlays"
 
 export type Tema = "oscuro" | "claro"
 
-// Ids de las features (⚙/✕) de la leyenda de cada indicador; el click llega
+// Ids de las features (👁/⚙/✕) de la leyenda de cada indicador; el click llega
 // por la acción onIndicatorTooltipFeatureClick con este id.
+export const FEATURE_OJO = "ojo-indicador"
 export const FEATURE_AJUSTES = "ajustes-indicador"
 export const FEATURE_QUITAR = "quitar-indicador"
 
@@ -59,6 +60,23 @@ function feature(id: string, code: string, tema: Tema) {
   }
 }
 
+// Ojo de mostrar/ocultar: path dibujado a medida en caja de 14×14 porque la
+// librería pinta los paths a escala 1:1 (un SVG estándar de 24 no cabría).
+// Solo comandos con coordenadas absolutas (M/Q/C/Z): el parser de la 10.0.0
+// resetea el punto de partida en cada comando y rompe los arcos (A) y los
+// relativos — la pupila es un círculo aproximado con cúbicas.
+const PATH_OJO =
+  "M1 7Q7 2.2 13 7Q7 11.8 1 7Z" +
+  "M7 4.9C8.16 4.9 9.1 5.84 9.1 7C9.1 8.16 8.16 9.1 7 9.1C5.84 9.1 4.9 8.16 4.9 7C4.9 5.84 5.84 4.9 7 4.9Z"
+
+function featureOjo(tema: Tema) {
+  return {
+    ...feature(FEATURE_OJO, "", tema),
+    type: "path" as const,
+    content: { path: PATH_OJO, style: "stroke" as const, lineWidth: 1.2 },
+  }
+}
+
 export function estilosBase(tema: Tema, rejilla: boolean): DeepPartial<Styles> {
   const t = TOKENS[tema]
   return {
@@ -77,7 +95,11 @@ export function estilosBase(tema: Tema, rejilla: boolean): DeepPartial<Styles> {
       tooltip: {
         title: { color: t.textoSuave },
         legend: { color: t.textoSuave },
-        features: [feature(FEATURE_AJUSTES, "⚙", tema), feature(FEATURE_QUITAR, "✕", tema)],
+        features: [
+          featureOjo(tema),
+          feature(FEATURE_AJUSTES, "⚙", tema),
+          feature(FEATURE_QUITAR, "✕", tema),
+        ],
       },
     },
   }

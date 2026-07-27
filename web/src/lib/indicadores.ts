@@ -5,13 +5,15 @@
 
 // Lo que se persiste por símbolo en dibujos.db, junto a los dibujos.
 // colores/grosor son ajustes opcionales de las líneas ("Auto" = null/ausente,
-// manda el default de la librería).
+// manda el default de la librería). visible solo se guarda cuando es false
+// (oculto con el ojo de la leyenda); ausente = visible.
 export type Indicador = {
   name: string
   calcParams: number[]
   panel: boolean
   colores?: (string | null)[]
   grosor?: number
+  visible?: boolean
 }
 
 export type EntradaCatalogo = {

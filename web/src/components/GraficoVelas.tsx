@@ -30,6 +30,7 @@ import {
   estilosDibujo,
   estilosLineas,
   FEATURE_AJUSTES,
+  FEATURE_OJO,
   FEATURE_QUITAR,
   lineaDesdeAjustes,
   type EstiloLinea,
@@ -95,12 +96,16 @@ function crearIndicador(
     chart.createIndicator({ ...creacion, paneId: "candle_pane" }, true)
   }
   const vivo = chart.getIndicators({ name: entrada.name })[0]
+  if (entrada.visible === false) {
+    chart.overrideIndicator({ name: entrada.name, visible: false })
+  }
   const ind: Indicador = {
     name: entrada.name,
     panel: entrada.panel,
     calcParams: (vivo?.calcParams as number[] | undefined) ?? entrada.calcParams ?? [],
     ...(entrada.colores ? { colores: entrada.colores } : {}),
     ...(entrada.grosor ? { grosor: entrada.grosor } : {}),
+    ...(entrada.visible === false ? { visible: false } : {}),
   }
   aplicarEstilosLineas(chart, ind)
   return ind
@@ -219,6 +224,7 @@ export function GraficoVelas({
         if (!name) return
         if (info.feature?.id === FEATURE_QUITAR) setTimeout(() => quitarIndicador(name), 0)
         else if (info.feature?.id === FEATURE_AJUSTES) setTimeout(() => setAjustesDe(name), 0)
+        else if (info.feature?.id === FEATURE_OJO) setTimeout(() => alternarVisibilidad(name), 0)
       })
       // Servimos todo el histórico de una vez: la primera llamada recibe la
       // serie completa y las siguientes (scroll hacia atrás) nada.
@@ -414,6 +420,27 @@ export function GraficoVelas({
     chartRef.current?.removeIndicator({ name })
     actualizarIndicadores((indicadoresRef.current ?? []).filter((i) => i.name !== name))
     setAjustesDe((abierto) => (abierto === name ? null : abierto))
+  }
+
+  // Ojo de la leyenda: oculta/muestra el indicador sin quitarlo. El estado
+  // viaja con el resto (visible: false solo cuando está oculto) y se persiste
+  // por símbolo al guardar, como colores o calcParams.
+  const alternarVisibilidad = (name: string) => {
+    const chart = chartRef.current
+    const vivos = indicadoresRef.current ?? []
+    const ind = vivos.find((i) => i.name === name)
+    if (!chart || !ind) return
+    const ocultar = ind.visible !== false
+    chart.overrideIndicator({ name, visible: !ocultar })
+    actualizarIndicadores(
+      vivos.map((i) => {
+        if (i.name !== name) return i
+        const copia = { ...i }
+        if (ocultar) copia.visible = false
+        else delete copia.visible
+        return copia
+      }),
+    )
   }
 
   const cambiarParams = (name: string, calcParams: number[]) => {
