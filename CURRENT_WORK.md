@@ -6,81 +6,101 @@
 (11/11 tests, incluida la prueba reina: dibujar→guardar→F5→persiste). Fondos
 UCITS resueltos SOLO con Yahoo (Morningstar descartado por licencia/complejidad).
 La app hace todo lo pedido: gráfico con intervalos 1H/4H/1D/1S/1M, indicadores
-y dibujos por símbolo persistentes (incluidos los de texto, ahora
-seleccionables/arrastrables como el resto de herramientas), barra de dibujo
-completa, listas reordenables arrastrando sus tabs Y sus símbolos reordenables
-arrastrando filas. El buscador de Binance cubre pares USDT y USDC (MiCA retiró
-USDT spot en la EEA en 2025 — el bot y las inversiones cripto del usuario
-operan USDC). Ya hubo cuatro redeploys reales en PRD sin incidencias. Sin
-pendientes bloqueantes; un fleco cosmético opcional (ver Notas Importantes).
+(con ojo de mostrar/ocultar en su leyenda, sin perder la configuración) y
+dibujos por símbolo persistentes (incluidos los de texto, seleccionables y
+arrastrables), barra de dibujo completa, listas reordenables arrastrando sus
+tabs y símbolos reordenables arrastrando filas. El buscador de Binance cubre
+pares USDT y USDC (MiCA retiró USDT spot en la EEA en 2025 — el bot y las
+inversiones cripto del usuario operan USDC). Ya hubo cinco redeploys reales
+en PRD sin incidencias. El usuario ya usa la app en real (listas y símbolos
+propios, análisis guardados, intradía 1h). Sin pendientes bloqueantes; un
+fleco cosmético opcional (ver Notas Importantes).
 
 ## 📍 Última Sesión Completada
 
-### Fecha: 2026-07-26 (noche, tercera sesión) — "dibujos de texto seleccionables/arrastrables + deploy"
+### Fecha: 2026-07-27 (madrugada) — "ojo de indicadores + asesoría de análisis técnico"
 
 ### Contexto de la Sesión:
 
-El usuario detectó en pruebas manuales que los dibujos de texto
-("Texto"/simpleAnnotation y "Etiqueta"/simpleTag) no podían moverse una vez
-colocados ni mostraban los botones de Ajustes/Borrar al clicarlos, a
-diferencia del resto de herramientas de dibujo.
+Tras el cierre de la sesión anterior (dibujos de texto, `c9e33fe`), el mismo
+día el usuario pidió asesoría sobre cómo configurar sus indicadores técnicos;
+de esa conversación salió una mejora concreta para la app.
 
 ### Trabajo Completado:
 
-- ✅ **Causa raíz**: las plantillas built-in de KLineChart 10.0.0 marcan
-  TODAS sus figuras con `ignoreEvent: true` — el click las atraviesa: sin
-  selección (sin botones) y sin arrastre.
-- ✅ **Fix** (`c34edf7`, rama `fix/mover-dibujos-texto` → merge ff a main →
-  push; rama conservada). Nuevo `web/src/lib/overlays/texto.ts` con las dos
-  plantillas vendorizadas de KLineChart 10.0.0 (Apache-2.0), MISMOS nombres
-  que las incorporadas para sustituirlas sin romper el contrato de
-  persistencia (mismo patrón que `fibonacciLine`). Cambios deliberados: sin
-  `ignoreEvent` en las figuras visibles + figuras por defecto activadas
-  (punto de anclaje y etiquetas de eje, solo visibles en hover/selección).
-  En `simpleTag` se deja OFF `needDefaultYAxisFigure` porque su texto de eje
-  ya lo pinta `createYAxisFigures` (el default duplicaría la etiqueta).
-  Registro en `overlays/index.ts` con comentario del contrato actualizado.
-- ✅ Verificado E2E en dev con Playwright (agente ui-tester), 6/6 PASS sobre
-  BTCUSDC: selección con botones "Ajustes"+"Borrar Texto/Etiqueta", arrastre
-  libre con cambio de `points` confirmado por API tras guardar, persistencia
-  tras F5, borrado con Supr, BD de dev restaurada exacta al baseline. 0
-  errores de consola. `make lint` OK. El usuario lo probó también a mano en
-  dev antes del deploy.
-- ✅ **Deploy a PRD verificado** (cuarto deploy real, sin incidencias):
-  backup previo `backups/dibujos_prd_20260726_222442.db` (32K); workflow
-  Deploy disparado con curl + PAT (204; run success sobre `c34edf7`);
-  redeploy en Dokploy hecho por el usuario. Verificado: contenedor
-  `trading-charts-2hwnph-charts-1` healthy con la imagen nueva (creada 20:25
-  UTC), volumen intacto (dibujos.db 32K + parquets — el usuario ya tiene
-  ADA/THETA/VET además de BTC/ETH en USDC y USDT), `/api/salud` 200, SPA
-  200. El usuario probó los dibujos de texto EN PRD y confirmó que funciona.
+- ✅ **Asesoría de indicadores** (sin código; fija la configuración del
+  usuario, detalle en memoria auto): MA 50/100/200 simples en diario (la
+  "MA" de KLineChart ES la SMA clásica; su "SMA" es la media suavizada china
+  [período, peso] — meterle [50,100,200] la rompe porque peso>período da
+  coeficiente negativo; para suavizadas usar EMA, ya que SMA(n,2) ≡ EMA(n)).
+  RSI para DIVERGENCIAS (período ~25 en diario, más largo en 1-4h), con
+  método formalizado: directriz "global" sobre pivotes del RSI + candidata +
+  confirmación causal (nuevo extremo del precio + cierre del RSI al otro
+  lado de la directriz). MACD 12/26/9. Quedan registradas en memoria dos
+  ideas para más adelante: experimento de bot de divergencias RSI en
+  `crypto_lab` (trading-bot) y backlog de mejoras de la app.
+- ✅ **Feature: ojo de indicadores** (`ff07e0e`, rama `feat/ojo-indicadores`
+  → merge ff a main → push; rama conservada). Tercer icono en la leyenda de
+  cada indicador (👁 antes de ⚙/✕) que oculta/muestra sin quitarlo — la
+  leyenda permanece (KLineChart omite líneas y valores con `visible: false`
+  pero mantiene título y features). Estado persistido por símbolo:
+  `visible?: boolean` en el tipo `Indicador` (solo se guarda cuando es
+  `false`), viaja sin cambios de backend (el PUT guarda `list[dict]` sin
+  esquema). Ficheros: `estilosGrafico.ts` (`FEATURE_OJO` + icono path),
+  `GraficoVelas.tsx` (`alternarVisibilidad` + restauración), `indicadores.ts`
+  (tipo).
+- ✅ **Lección técnica** (documentada en comentario del código y en memoria):
+  el parser de paths de KLineChart 10.0.0 resetea el punto de partida en
+  cada comando — arcos (`A`) y comandos relativos se rompen (el primer
+  intento del ojo pintaba una línea gigante, detectado por el usuario
+  probando en dev). Para iconos path de features: solo comandos absolutos
+  M/L/H/V/Q/C/Z; la pupila del ojo es un círculo aproximado con cúbicas.
+- ✅ Verificado: el usuario validó visualmente en dev; agente ui-tester 6/6
+  PASS (ocultar/mostrar en panel principal y aparte, payload con
+  `visible: false`, restauración oculta tras F5, convivencia con ⚙/✕, BD
+  restaurada al baseline), 0 errores de consola, `make lint` OK.
+- ✅ **Deploy a PRD verificado** (quinto redeploy real, sin incidencias):
+  backup previo `backups/dibujos_prd_20260727_035154.db` (32K); workflow
+  Deploy success sobre `ff07e0e`; redeploy en Dokploy por el usuario;
+  contenedor healthy con la imagen de 01:52 UTC, volumen intacto (dibujos.db
+  con guardados reales del usuario + parquets incl. `BTCUSDT_1h` de uso
+  intradía), `/api/salud` y SPA 200.
 
 ### Estado al Finalizar:
 
-- `main` en `c34edf7`, local, `origin/main` y producción al día. Working
-  tree limpio.
+- `main` en `ff07e0e` (+ este cierre); local, `origin/main` y producción
+  sincronizados. Working tree limpio salvo `CURRENT_WORK.md`.
 - Servidores dev apagados; backup de dibujos reciente.
+- El usuario ya usa la app en real (listas propias, símbolos
+  ADA/THETA/VET/BTC/ETH, análisis guardados, intradía 1h).
 
 ### Próximos Pasos Sugeridos:
 
-1. Sin bloqueantes: el usuario ya está usando la app en real (listas y
-   símbolos propios) — la próxima sesión la marca él.
-2. Fleco cosmético del logout (ver Notas Importantes) — opcional, solo si
-   algún día molesta.
-3. Sigue en background: adaptar referencias de skills/agents heredados de
-   `.claude/` al usarlos por primera vez.
+1. Vista dual (diario + intervalo de disparo lado a lado), pedida por el
+   usuario: requiere sesión dedicada, empezando por decidir el modelo de
+   guardado de dibujos entre dos paneles (riesgo de pisado — dos botones
+   Guardar sobre el mismo símbolo). En backlog de memoria.
+2. Sin más bloqueantes; flecos de siempre en background (logout cosmético,
+   referencias de skills heredados).
 
 ---
 🔴 [FIN DE SESIÓN - BREAKPOINT]
-📅 Fecha: 2026-07-26 (noche, tercera sesión)
-🎯 Estado: Producción al día con dibujos de texto seleccionables/arrastrables
-    desplegados y verificados E2E; sin pendientes bloqueantes.
-⏭️  Retomar: sin acción predefinida — esperar lo que traiga el usuario (ya
-    usando la app en real).
+📅 Fecha: 2026-07-27 (madrugada)
+🎯 Estado: Producción al día con el ojo de indicadores desplegado y
+    verificado E2E; configuración de indicadores del usuario fijada
+    (asesoría, sin código); sin pendientes bloqueantes.
+⏭️  Retomar: sin acción predefinida — esperar lo que traiga el usuario, o
+    abordar la vista dual (diario + intervalo de disparo) si toca sesión
+    dedicada.
 ---
 
 ## 📝 Sesiones Anteriores (Resumen)
 
+- 2026-07-26 (noche, tercera sesión): dibujos de texto (Texto/Etiqueta)
+  seleccionables y arrastrables — causa raíz `ignoreEvent: true` en las
+  plantillas built-in, fix vendorizando ambas plantillas en
+  `overlays/texto.ts` (`c34edf7`), deploy a PRD verificado (cuarto redeploy
+  real).
 - 2026-07-26 (noche, segunda sesión): símbolos reordenables arrastrando sus
   filas (`d1f8776`, backend ya persistía el orden), deploy a PRD verificado
   (tercer redeploy real).
@@ -128,6 +148,10 @@ por símbolo, una fuente de verdad por familia de intervalos, auth de usuario
 - La línea horizontal de la "Etiqueta" (simpleTag) tiene hit-area fina
   (~2px), como cualquier línea de la librería: si un día "no se deja
   seleccionar", es precisión de click, no regresión.
+- Los iconos path de features de KLineChart 10.0.0 (leyenda de indicadores,
+  barra de dibujo) solo admiten comandos absolutos M/L/H/V/Q/C/Z: el parser
+  resetea el punto de partida en cada comando y arcos (`A`)/relativos se
+  rompen (ver icono del ojo, `estilosGrafico.ts`).
 - **Deploy de nueva versión**: merge a main → Actions "Deploy" (confirm=yes)
   → Dokploy Deploy (el custom command hace `--pull always`).
 - **`backup-prd` ANTES** de cambios arriesgados y después de análisis
