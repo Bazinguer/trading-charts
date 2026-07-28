@@ -8,6 +8,7 @@ import {
   Clock,
   ListChecks,
   LoaderCircle,
+  Moon,
   Pencil,
   Plus,
   Settings2,
@@ -128,6 +129,11 @@ const COLUMNAS: Columna[] = [
 ]
 
 type Visibilidad = Record<ColId, boolean>
+
+// En móvil los items se pintan como filas estilo Investing (consulta), no
+// como tabla. Evaluado una vez al cargar el módulo: girar el dispositivo no
+// recompone la vista bajo el dedo.
+const MOVIL = window.matchMedia("(max-width: 767px)").matches
 
 const VISIBILIDAD_INICIAL = Object.fromEntries(
   COLUMNAS.map((c) => [c.id, !c.ocultaInicial]),
@@ -377,6 +383,49 @@ function Celda({ col, simbolo, r }: { col: Columna; simbolo: string; r?: Resumen
   }
 }
 
+// Fila móvil estilo Investing: nombre y símbolo a la izquierda, último y
+// % var. a la derecha, con la línea del horario ampliado (🌙) si el activo
+// la tiene. Toda la fila lleva al gráfico.
+function FilaMovil({
+  simbolo,
+  r,
+  onAbrir,
+}: {
+  simbolo: string
+  r?: ResumenSimbolo
+  onAbrir: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onAbrir}
+      className="flex w-full items-center justify-between gap-3 border-b px-3 py-3 text-left transition-colors last:border-b-0 active:bg-accent"
+    >
+      <div className="min-w-0">
+        <p className="truncate text-[15px] font-medium">{r?.nombre ?? simbolo}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {r?.fecha ? `${fechaCorta(r.fecha)} · ${simbolo}` : simbolo}
+        </p>
+      </div>
+      <div className="shrink-0 text-right tabular-nums">
+        <p className="text-[15px] font-semibold">{r?.ultimo != null ? precio(r.ultimo) : "—"}</p>
+        <p className={cn("mt-0.5 text-sm", claseSigno(r?.var_pct))}>
+          {r?.var_pct != null ? porcentaje(r.var_pct) : "—"}
+        </p>
+        {r?.ampliado != null && (
+          <p className="mt-0.5 flex items-center justify-end gap-1 text-xs text-muted-foreground">
+            <Moon className="h-3 w-3" aria-hidden="true" />
+            {precio(r.ampliado)}
+            {r.ampliado_pct != null && (
+              <span className={claseSigno(r.ampliado_pct)}>{porcentaje(r.ampliado_pct)}</span>
+            )}
+          </p>
+        )}
+      </div>
+    </button>
+  )
+}
+
 function TablaLista({
   lista,
   resumen,
@@ -451,26 +500,29 @@ function TablaLista({
           simbolos={simbolos}
           alAnadir={(simbolo) => alGuardarSimbolos([...simbolos, simbolo])}
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="w-fit text-muted-foreground">
-              <Settings2 /> Columnas
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            {COLUMNAS.map((c) => (
-              <DropdownMenuCheckboxItem
-                key={c.id}
-                checked={visibles[c.id]}
-                disabled={c.fija}
-                onCheckedChange={(marcado) => alCambiarColumna(c.id, marcado === true)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {c.etiqueta}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* En móvil no hay tabla: el selector de columnas no aplica */}
+        {!MOVIL && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="w-fit text-muted-foreground">
+                <Settings2 /> Columnas
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {COLUMNAS.map((c) => (
+                <DropdownMenuCheckboxItem
+                  key={c.id}
+                  checked={visibles[c.id]}
+                  disabled={c.fija}
+                  onCheckedChange={(marcado) => alCambiarColumna(c.id, marcado === true)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {c.etiqueta}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <div className="flex items-center gap-1 sm:ml-auto">
           <Button
             variant="ghost"
@@ -502,6 +554,17 @@ function TablaLista({
             title="Lista vacía"
             description="Usa «Añadir símbolo» para empezar a seguir tus activos."
           />
+        ) : MOVIL ? (
+          <div>
+            {ordenados.map((simbolo) => (
+              <FilaMovil
+                key={simbolo}
+                simbolo={simbolo}
+                r={resumen[simbolo]}
+                onAbrir={() => irAlGrafico(simbolo)}
+              />
+            ))}
+          </div>
         ) : (
           <Table>
             <TableHeader>
@@ -717,7 +780,7 @@ export function Inicio() {
       ) : (
         // Tabs underline: decisión canónica del DS (el pill default de shadcn, no).
         <Tabs value={tab} onValueChange={setTab} className="gap-0">
-          <TabsList className="h-11 w-full justify-start rounded-none border-b bg-transparent p-0">
+          <TabsList className="h-11 w-full justify-start overflow-x-auto rounded-none border-b bg-transparent p-0">
             {listas.map((l) => (
               <TabsTrigger
                 key={l.id}
