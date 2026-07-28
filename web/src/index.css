@@ -2,6 +2,13 @@
 @import "tw-animate-css";
 
 /*
+ * Pantallas con sitio para el chrome de dibujo (barra de herramientas y
+ * ajustes de overlays). En móvil —vertical u horizontal, donde falta alto—
+ * el gráfico es de CONSULTA: los dibujos guardados se pintan igual.
+ */
+@custom-variant dibujo (@media (min-width: 768px) and (min-height: 500px));
+
+/*
  * Tokens del tema (heredados del DS de trading-bot).
  * El tema OSCURO es el por defecto (:root); .light lo sobreescribe.
  */

@@ -80,8 +80,8 @@ export function Grafico() {
         <ChevronLeft className="h-3.5 w-3.5" />
         {etiquetaVolver}
       </Link>
-      <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold">
+      <div className="flex flex-wrap items-center gap-3 gap-y-2">
+        <h1 className="min-w-0 max-w-full truncate text-lg font-semibold">
           {simbolo}
           {nombre && (
             <span className="ml-2 text-sm font-normal text-muted-foreground">{nombre}</span>

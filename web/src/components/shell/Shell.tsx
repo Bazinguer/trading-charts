@@ -50,11 +50,12 @@ export function Shell() {
           <span className="grid size-9 place-items-center rounded-[9px] bg-accent text-primary">
             <ChartCandlestick className="size-[18px]" />
           </span>
-          Trading Charts
+          <span className="max-md:hidden">Trading Charts</span>
         </Link>
 
-        {/* Navegación centrada respecto a la ventana, no al hueco restante */}
-        <nav className="absolute left-1/2 flex -translate-x-1/2 items-center gap-1">
+        {/* Navegación centrada respecto a la ventana, no al hueco restante.
+            En móvil el centrado absoluto se solaparía con el logo: va en flujo. */}
+        <nav className="ml-2 flex items-center gap-1 md:absolute md:left-1/2 md:ml-0 md:-translate-x-1/2">
           <ItemNav a="/" etiqueta="Inicio" icono={LayoutDashboard} activo={pathname === "/"} />
           <ItemNav
             a="/graficos"
@@ -85,7 +86,13 @@ export function Shell() {
         </Button>
       </header>
 
-      <main className="flex flex-1 flex-col overflow-auto p-4 md:p-6">
+      <main
+        className={cn(
+          "flex flex-1 flex-col overflow-auto md:p-6",
+          // La vista de gráfico cede el padding al lienzo en pantallas pequeñas
+          pathname.startsWith("/grafico/") ? "p-2" : "p-4",
+        )}
+      >
         <Outlet />
       </main>
     </div>

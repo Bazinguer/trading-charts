@@ -164,7 +164,7 @@ export function BarraHerramientas({
   }
 
   return (
-    <div className="flex w-12 shrink-0 flex-col items-center gap-0.5 rounded-[10px] border bg-card p-1">
+    <div className="hidden w-12 shrink-0 flex-col items-center gap-0.5 rounded-[10px] border bg-card p-1 dibujo:flex">
       {GRUPOS.map((grupo) =>
         grupo.herramientas.length === 1 ? (
           <Button

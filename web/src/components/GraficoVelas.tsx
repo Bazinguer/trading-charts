@@ -509,7 +509,7 @@ export function GraficoVelas({
           onMouseLeave={() => setArrastrando(false)}
         />
         {seleccionado && (
-          <div className="absolute right-14 top-2 z-10 flex gap-1">
+          <div className="absolute right-14 top-2 z-10 hidden gap-1 dibujo:flex">
             {/* La regla no se ajusta: su verde/rojo indica dirección, es semántico */}
             {seleccionado.name !== "measure" && (
               <Button size="sm" variant="secondary" className="border" onClick={abrirAjustesDibujo}>
