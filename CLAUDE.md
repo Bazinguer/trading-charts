@@ -17,7 +17,11 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
   `fibonacciLine` SUSTITUYE al incorporado (mismo nombre, deliberado): acotado
   al ancho de sus dos puntos, niveles ocultables (extendData.niveles) y estilo
   por dibujo. Sus NOMBRES son parte del contrato de persistencia: renombrarlos
-  rompe dibujos guardados.
+  rompe dibujos guardados. El PANEL de cada dibujo también es contrato: se
+  guarda como `paneId` (ausente = panel del precio; `panel_<INDICADOR>`, p. ej.
+  `panel_RSI`, para dibujos sobre paneles — ver `paneDe()` en GraficoVelas).
+  Cambiar ese esquema de ids rompe dibujos guardados igual que renombrar
+  overlays.
 - Dibujos por símbolo (no por símbolo+timeframe): anclados a tiempo+precio,
   el análisis hecho en diario se ve también en semanal. Los indicadores
   activos (nombre + calcParams + panel) se guardan igual: por símbolo, junto
