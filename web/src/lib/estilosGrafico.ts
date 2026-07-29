@@ -105,6 +105,16 @@ export function estilosBase(tema: Tema, rejilla: boolean): DeepPartial<Styles> {
   }
 }
 
+// Modo consulta (móvil): el bloque de ticker · intervalo + OHLC dentro del
+// lienzo tapa el precio en un canvas pequeño — solo con crosshair activo
+// (pulsación larga en táctil). Las leyendas de indicadores se quedan: llevan
+// el ojo, y ocultarlas es decisión del usuario, no del modo.
+export function estilosConsulta(): DeepPartial<Styles> {
+  return {
+    candle: { tooltip: { showRule: "follow_cross" } },
+  }
+}
+
 export type EstiloLinea = "continua" | "discontinua" | "punteada"
 
 // Estilo de línea de KLineChart a partir de los ajustes básicos de un dibujo.

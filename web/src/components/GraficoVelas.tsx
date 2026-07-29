@@ -27,6 +27,7 @@ function leerBaseFibo(): AjustesForma | null {
 import { api, apiPut, ErrorApi } from "@/lib/api"
 import {
   estilosBase,
+  estilosConsulta,
   estilosDibujo,
   estilosLineas,
   FEATURE_AJUSTES,
@@ -86,6 +87,7 @@ function aplicarEstilosLineas(chart: Chart, ind: Indicador) {
 function crearIndicador(
   chart: Chart,
   entrada: { name: string; panel: boolean; calcParams?: number[] } & Partial<Indicador>,
+  alturaPanel?: number,
 ): Indicador {
   const creacion = entrada.calcParams?.length
     ? { name: entrada.name, calcParams: entrada.calcParams }
@@ -96,6 +98,11 @@ function crearIndicador(
     chart.createIndicator({ ...creacion, paneId: "candle_pane" }, true)
   }
   const vivo = chart.getIndicators({ name: entrada.name })[0]
+  // En lienzos de poca altura (móvil apaisado) el panel a altura por defecto
+  // ahoga el precio: se rebaja nada más crearlo.
+  if (entrada.panel && alturaPanel && vivo?.paneId) {
+    chart.setPaneOptions({ id: vivo.paneId, height: alturaPanel })
+  }
   if (entrada.visible === false) {
     chart.overrideIndicator({ name: entrada.name, visible: false })
   }
@@ -126,6 +133,8 @@ export function GraficoVelas({
   intervalo,
   tipo,
   rejilla,
+  sinPaneles = false,
+  modoConsulta = false,
   indicadoresAbierto,
   onIndicadoresAbierto,
 }: {
@@ -133,6 +142,12 @@ export function GraficoVelas({
   intervalo: Intervalo
   tipo: TipoGrafico
   rejilla: boolean
+  /** Ficha de consulta móvil: omite los indicadores con panel propio (RSI,
+      MACD…), que no caben; los superpuestos al precio (MA…) sí se aplican.
+      Cambiarlo exige remontar el componente (key en Grafico). */
+  sinPaneles?: boolean
+  /** Móvil (ficha y expandido): leyenda del lienzo solo con crosshair activo. */
+  modoConsulta?: boolean
   indicadoresAbierto: boolean
   onIndicadoresAbierto: (abierto: boolean) => void
 }) {
@@ -213,6 +228,7 @@ export function GraficoVelas({
       chart.setPeriod(PERIODOS[intervalo])
       chart.setStyles(estilosBase(temaRef.current, rejillaRef.current))
       chart.setStyles(estiloVelas(tipoRef.current))
+      if (modoConsulta) chart.setStyles(estilosConsulta())
 
       // Rueda (⚙) y quitar (✕) de la leyenda de cada indicador. Diferido con
       // setTimeout: si el diálogo monta DURANTE el mousedown del canvas, ese
@@ -236,6 +252,15 @@ export function GraficoVelas({
         },
       })
 
+      // Ficha de consulta: vista panorámica de inicio (~150 velas; unos 7
+      // meses en diario). El zoom por defecto de la librería está pensado
+      // para lienzo de escritorio y en móvil deja ~20 velas. El pinch del
+      // usuario sigue mandando después.
+      if (sinPaneles) {
+        const anchoLienzo = contenedor.clientWidth - 70 // menos el eje de precios
+        chart.setBarSpace(Math.max(1, anchoLienzo / 150))
+      }
+
       const { overlays, indicadores: guardados } = await api<{
         overlays: DibujoGuardado[]
         indicadores: Indicador[]
@@ -245,9 +270,10 @@ export function GraficoVelas({
       if (overlays.length > 0) {
         chart.createOverlay(overlays.map((o) => ({ ...o, ...eventosOverlay })))
       }
-      const aplicados = (indicadoresRef.current ?? guardados).map((ind) =>
-        crearIndicador(chart, ind),
-      )
+      const alturaPanel = contenedor.clientHeight < 500 ? 72 : undefined
+      const aplicados = (indicadoresRef.current ?? guardados)
+        .filter((ind) => !sinPaneles || !ind.panel)
+        .map((ind) => crearIndicador(chart, ind, alturaPanel))
       indicadoresRef.current = aplicados
       setIndicadores(aplicados)
 
@@ -409,11 +435,16 @@ export function GraficoVelas({
 
   // Los handlers leen SIEMPRE de indicadoresRef: también se invocan desde la
   // suscripción del chart (closure del primer render, estado congelado).
+  const alturaPanelActual = () => {
+    const alto = contenedorRef.current?.clientHeight ?? Infinity
+    return alto < 500 ? 72 : undefined
+  }
+
   const anadirIndicador = (entrada: EntradaCatalogo) => {
     const chart = chartRef.current
     const vivos = indicadoresRef.current ?? []
     if (!chart || vivos.some((i) => i.name === entrada.name)) return
-    actualizarIndicadores([...vivos, crearIndicador(chart, entrada)])
+    actualizarIndicadores([...vivos, crearIndicador(chart, entrada, alturaPanelActual())])
   }
 
   const quitarIndicador = (name: string) => {
