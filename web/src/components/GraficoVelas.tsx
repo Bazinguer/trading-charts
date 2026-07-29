@@ -84,25 +84,26 @@ function aplicarEstilosLineas(chart: Chart, ind: Indicador) {
 // Crea un indicador en el chart y devuelve su estado real (con los calcParams
 // por defecto que ponga la librería si no venían dados). Un indicador por
 // nombre como máximo: así quitar/editar no necesita rastrear paneIds.
+// paneId determinista por indicador ("panel_RSI"): los dibujos hechos SOBRE
+// un panel (directrices en el RSI…) guardan ese id y vuelven a su panel al
+// restaurar, sin depender de ids autogenerados que cambian entre sesiones.
+export function paneDe(name: string): string {
+  return `panel_${name}`
+}
+
 function crearIndicador(
   chart: Chart,
   entrada: { name: string; panel: boolean; calcParams?: number[] } & Partial<Indicador>,
-  alturaPanel?: number,
 ): Indicador {
   const creacion = entrada.calcParams?.length
     ? { name: entrada.name, calcParams: entrada.calcParams }
     : { name: entrada.name }
   if (entrada.panel) {
-    chart.createIndicator(creacion, false)
+    chart.createIndicator({ ...creacion, paneId: paneDe(entrada.name) }, false)
   } else {
     chart.createIndicator({ ...creacion, paneId: "candle_pane" }, true)
   }
   const vivo = chart.getIndicators({ name: entrada.name })[0]
-  // En lienzos de poca altura (móvil apaisado) el panel a altura por defecto
-  // ahoga el precio: se rebaja nada más crearlo.
-  if (entrada.panel && alturaPanel && vivo?.paneId) {
-    chart.setPaneOptions({ id: vivo.paneId, height: alturaPanel })
-  }
   if (entrada.visible === false) {
     chart.overrideIndicator({ name: entrada.name, visible: false })
   }
@@ -124,6 +125,9 @@ function crearIndicador(
 type DibujoGuardado = {
   name: string
   points: { timestamp?: number; value?: number }[]
+  // Panel donde vive el dibujo; ausente = panel del precio (candle_pane).
+  // Los guardados antiguos no lo traen y restauran al precio, como siempre.
+  paneId?: string
   extendData?: unknown
   styles?: DeepPartial<OverlayStyle> | null
 }
@@ -164,6 +168,10 @@ export function GraficoVelas({
   const [seleccionado, setSeleccionado] = useState<{ id: string; name: string } | null>(null)
   // Portapapeles interno de dibujos (Ctrl+C / Ctrl+V).
   const portapapelesRef = useRef<DibujoGuardado | null>(null)
+  // Dibujos guardados cuyo panel no existe en esta vista (indicador quitado,
+  // o ficha móvil sin paneles): no se pintan pero se conservan para
+  // re-guardarlos intactos — perder dibujos es perder el propósito.
+  const huerfanosRef = useRef<DibujoGuardado[]>([])
   // Ajustes del dibujo seleccionado; null = diálogo cerrado.
   const [ajustesDibujo, setAjustesDibujo] = useState<AjustesForma | null>(null)
 
@@ -267,18 +275,33 @@ export function GraficoVelas({
       }>(`/api/dibujos/${encodeURIComponent(simbolo)}`)
       if (cancelado) return
 
-      if (overlays.length > 0) {
-        chart.createOverlay(overlays.map((o) => ({ ...o, ...eventosOverlay })))
-      }
-      const alturaPanel = contenedor.clientHeight < 500 ? 72 : undefined
+      // Indicadores ANTES que dibujos: un dibujo puede vivir en el panel de
+      // un indicador (directriz sobre el RSI) y su panel debe existir ya.
       const aplicados = (indicadoresRef.current ?? guardados)
         .filter((ind) => !sinPaneles || !ind.panel)
-        .map((ind) => crearIndicador(chart, ind, alturaPanel))
+        .map((ind) => crearIndicador(chart, ind))
       indicadoresRef.current = aplicados
       setIndicadores(aplicados)
 
+      const panelesVivos = new Set(aplicados.filter((i) => i.panel).map((i) => paneDe(i.name)))
+      const enPanelVivo = (o: DibujoGuardado) =>
+        !o.paneId || o.paneId === "candle_pane" || panelesVivos.has(o.paneId)
+      const renderables = overlays.filter(enPanelVivo)
+      huerfanosRef.current = overlays.filter((o) => !enPanelVivo(o))
+      if (renderables.length > 0) {
+        chart.createOverlay(
+          // En consulta (móvil) los dibujos son intocables: lock evita
+          // arrastres accidentales con el dedo.
+          renderables.map((o) => ({
+            ...o,
+            ...(modoConsulta ? { lock: true } : {}),
+            ...eventosOverlay,
+          })),
+        )
+      }
+
       const partes = []
-      if (overlays.length > 0) partes.push(plural(overlays.length, "dibujo"))
+      if (renderables.length > 0) partes.push(plural(renderables.length, "dibujo"))
       if (aplicados.length > 0) partes.push(plural(aplicados.length, "indicador"))
       if (partes.length > 0) setEstado(`${partes.join(" y ")} restaurados`)
     }
@@ -393,6 +416,7 @@ export function GraficoVelas({
     portapapelesRef.current = {
       name: vivo.name,
       points: vivo.points.map((p) => ({ timestamp: p.timestamp, value: p.value })),
+      ...(vivo.paneId !== "candle_pane" ? { paneId: vivo.paneId } : {}),
       extendData: vivo.extendData,
       ...(vivo.styles ? { styles: vivo.styles } : {}),
     }
@@ -410,7 +434,15 @@ export function GraficoVelas({
       ...p,
       ...(typeof p.timestamp === "number" ? { timestamp: p.timestamp + delta * 5 } : {}),
     }))
-    chart.createOverlay({ ...copia, points, ...eventosOverlay })
+    const base = { ...copia, points, ...eventosOverlay }
+    // Si el panel del copiado ya no existe, el pegado cae al panel del precio.
+    if (
+      base.paneId &&
+      !(indicadoresRef.current ?? []).some((i) => i.panel && paneDe(i.name) === base.paneId)
+    ) {
+      delete base.paneId
+    }
+    chart.createOverlay(base)
     setEstado("Dibujo pegado — muévelo a su sitio y guarda")
   }
 
@@ -435,16 +467,11 @@ export function GraficoVelas({
 
   // Los handlers leen SIEMPRE de indicadoresRef: también se invocan desde la
   // suscripción del chart (closure del primer render, estado congelado).
-  const alturaPanelActual = () => {
-    const alto = contenedorRef.current?.clientHeight ?? Infinity
-    return alto < 500 ? 72 : undefined
-  }
-
   const anadirIndicador = (entrada: EntradaCatalogo) => {
     const chart = chartRef.current
     const vivos = indicadoresRef.current ?? []
     if (!chart || vivos.some((i) => i.name === entrada.name)) return
-    actualizarIndicadores([...vivos, crearIndicador(chart, entrada, alturaPanelActual())])
+    actualizarIndicadores([...vivos, crearIndicador(chart, entrada)])
   }
 
   const quitarIndicador = (name: string) => {
@@ -508,9 +535,12 @@ export function GraficoVelas({
     const overlays: DibujoGuardado[] = chart.getOverlays().map((overlay) => ({
       name: overlay.name,
       points: overlay.points.map((p) => ({ timestamp: p.timestamp, value: p.value })),
+      ...(overlay.paneId !== "candle_pane" ? { paneId: overlay.paneId } : {}),
       extendData: overlay.extendData,
       ...(overlay.styles ? { styles: overlay.styles } : {}),
     }))
+    // Los huérfanos (panel no presente en esta vista) se re-guardan tal cual.
+    overlays.push(...huerfanosRef.current)
     try {
       await apiPut(`/api/dibujos/${encodeURIComponent(simbolo)}`, { overlays, indicadores })
       const partes = [plural(overlays.length, "dibujo")]

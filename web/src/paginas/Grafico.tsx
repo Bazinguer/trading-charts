@@ -1,13 +1,11 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import {
   ChartCandlestick,
   ChartLine,
   ChartNoAxesCombined,
   ChevronLeft,
   Grid3x3,
-  Maximize2,
   Moon,
-  X,
 } from "lucide-react"
 import { Link, useLocation, useParams } from "react-router-dom"
 
@@ -34,18 +32,11 @@ const TIPOS: { valor: TipoGrafico; etiqueta: string; Icono: typeof ChartCandlest
 const CLAVE_TIPO = "tc-tipo-grafico"
 const CLAVE_REJILLA = "tc-rejilla"
 
-// Pantallas de consulta (móvil, vertical u horizontal): ficha con precio
-// grande y gráfico limpio + botón de expandir a pantalla completa apaisada.
-// Es el inverso de la variante CSS 'dibujo' y, como en Inicio, se evalúa al
-// cargar el módulo.
+// Pantallas de consulta (móvil, vertical u horizontal): ficha estable con
+// precio grande y gráfico de solo-lectura (dibujos bloqueados, sin paneles).
+// El análisis se hace en PC. Es el inverso de la variante CSS 'dibujo' y,
+// como en Inicio, se evalúa al cargar el módulo.
 const CONSULTA = window.matchMedia("(max-width: 767px), (max-height: 500px)").matches
-
-// El giro automático a apaisado solo existe en Android (y exige fullscreen);
-// en iOS/escritorio los métodos pueden no existir: todo es mejor-esfuerzo.
-const orientacion = screen.orientation as ScreenOrientation & {
-  lock?: (modo: "landscape") => Promise<void>
-  unlock?: () => void
-}
 
 function BotonesIntervalo({
   intervalo,
@@ -106,11 +97,6 @@ export function Grafico() {
   const [rejilla, setRejilla] = useState(() => localStorage.getItem(CLAVE_REJILLA) === "1")
   const [indicadoresAbierto, setIndicadoresAbierto] = useState(false)
   const [resumen, setResumen] = useState<ResumenSimbolo | null>(null)
-  const [expandido, setExpandido] = useState(false)
-  // Expandido: los paneles de indicadores pueden colapsarse para dejar todo
-  // el alto al precio (en apaisado de móvil se lo comen).
-  const [conPaneles, setConPaneles] = useState(true)
-  const lienzoRef = useRef<HTMLDivElement>(null)
 
   const cambiarTipo = (valor: TipoGrafico) => {
     setTipo(valor)
@@ -141,42 +127,6 @@ export function Grafico() {
       cancelado = true
     }
   }, [simbolo])
-
-  const expandir = async () => {
-    const el = lienzoRef.current
-    if (!el) return
-    try {
-      await el.requestFullscreen()
-    } catch {
-      return // sin API de fullscreen no hay modo expandido
-    }
-    setExpandido(true)
-    try {
-      await orientacion.lock?.("landscape")
-    } catch {
-      // El navegador no deja girar: el usuario gira el móvil a mano.
-    }
-  }
-
-  const cerrarExpandido = () => {
-    void document.exitFullscreen().catch(() => {})
-  }
-
-  // La salida real puede venir del botón, del gesto atrás o de Escape: el
-  // estado se sincroniza siempre desde el evento, nunca desde el botón.
-  useEffect(() => {
-    const alCambiarFullscreen = () => {
-      if (document.fullscreenElement) return
-      setExpandido(false)
-      try {
-        orientacion.unlock?.()
-      } catch {
-        // nada que desbloquear
-      }
-    }
-    document.addEventListener("fullscreenchange", alCambiarFullscreen)
-    return () => document.removeEventListener("fullscreenchange", alCambiarFullscreen)
-  }, [])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
@@ -254,69 +204,25 @@ export function Grafico() {
         </div>
       )}
 
-      {/* Contenedor que pasa a fullscreen al expandir la ficha */}
-      <div
-        ref={lienzoRef}
-        className={cn("flex min-h-0 flex-1 flex-col", expandido && "gap-2 bg-background p-2")}
-      >
-        {expandido && (
-          <div className="flex items-center gap-2">
-            <BotonesIntervalo intervalo={intervalo} alCambiar={setIntervalo} />
-            <div className="h-5 w-px bg-border" />
-            <BotonesTipo tipo={tipo} alCambiar={cambiarTipo} />
-            <Button
-              size="icon-sm"
-              variant={conPaneles ? "default" : "secondary"}
-              title="Paneles de indicadores"
-              aria-label="Paneles de indicadores"
-              aria-pressed={conPaneles}
-              onClick={() => setConPaneles((v) => !v)}
-            >
-              <ChartNoAxesCombined />
-            </Button>
-            <Button
-              size="icon-sm"
-              variant="secondary"
-              className="ml-auto"
-              title="Salir de pantalla completa"
-              aria-label="Salir de pantalla completa"
-              onClick={cerrarExpandido}
-            >
-              <X />
-            </Button>
-          </div>
-        )}
-        {/* key: cambiar de símbolo (o expandir/plegar la ficha) debe remontar
-            el gráfico y su estado (indicadores) desde cero, nunca arrastrar
-            los del estado anterior */}
-        <GraficoVelas
-          key={CONSULTA ? `${simbolo}:${expandido ? `completo:${conPaneles}` : "ficha"}` : simbolo}
-          simbolo={simbolo}
-          intervalo={intervalo}
-          tipo={tipo}
-          rejilla={rejilla}
-          sinPaneles={CONSULTA && (!expandido || !conPaneles)}
-          modoConsulta={CONSULTA}
-          indicadoresAbierto={indicadoresAbierto}
-          onIndicadoresAbierto={setIndicadoresAbierto}
-        />
-      </div>
+      {/* key: cambiar de símbolo debe remontar el gráfico y su estado
+          (indicadores) desde cero, nunca arrastrar los del símbolo anterior */}
+      <GraficoVelas
+        key={simbolo}
+        simbolo={simbolo}
+        intervalo={intervalo}
+        tipo={tipo}
+        rejilla={rejilla}
+        sinPaneles={CONSULTA}
+        modoConsulta={CONSULTA}
+        indicadoresAbierto={indicadoresAbierto}
+        onIndicadoresAbierto={setIndicadoresAbierto}
+      />
 
-      {CONSULTA && !expandido && (
-        <div className="flex items-center gap-2">
+      {CONSULTA && (
+        <div className="flex flex-wrap items-center gap-2">
           <BotonesIntervalo intervalo={intervalo} alCambiar={setIntervalo} />
           <div className="h-5 w-px bg-border" />
           <BotonesTipo tipo={tipo} alCambiar={cambiarTipo} />
-          <Button
-            size="icon-sm"
-            variant="secondary"
-            className="ml-auto"
-            title="Pantalla completa"
-            aria-label="Pantalla completa"
-            onClick={() => void expandir()}
-          >
-            <Maximize2 />
-          </Button>
         </div>
       )}
     </div>
