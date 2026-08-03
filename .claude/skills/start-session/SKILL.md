@@ -27,7 +27,10 @@ Arrancando sesión de trabajo...
   `data/dibujos.db` y cualquier migración.
 - Comandos: `make api` (uvicorn :8010) · `make web` (Vite :5173) ·
   `make lint` · `make datos`. Credenciales dev en `.env`.
-- El hook `git_guard.py` bloquea commits en `main`: trabajar siempre en rama.
+- El hook `git_guard.py` solo AVISA (nunca bloquea) de operaciones git
+  destructivas (`reset --hard`, force push, `checkout -- .`). Se puede
+  commitear en `main` (repo personal), aunque la rama sigue siendo buena
+  práctica para trabajo con varios commits.
 - Guías de UI en `docs/design/` (BRAND.md y UX_PATTERNS.md) — consultarlas
   antes de crear o retocar pantallas.
 - No es acabar rápido, es hacerlo bien: ¿qué hago? ¿por qué? ¿es la mejor
