@@ -166,6 +166,9 @@ export function GraficoVelas({
   const [ajustesDe, setAjustesDe] = useState<string | null>(null)
   // Dibujo seleccionado en el lienzo (click sobre él): habilita borrado individual.
   const [seleccionado, setSeleccionado] = useState<{ id: string; name: string } | null>(null)
+  // Ojo global de la barra: estado de vista efímero, nunca se persiste — al
+  // recargar o cambiar de intervalo los dibujos nacen visibles.
+  const [dibujosOcultos, setDibujosOcultos] = useState(false)
   // Portapapeles interno de dibujos (Ctrl+C / Ctrl+V).
   const portapapelesRef = useRef<DibujoGuardado | null>(null)
   // Dibujos guardados cuyo panel no existe en esta vista (indicador quitado,
@@ -303,7 +306,8 @@ export function GraficoVelas({
       const partes = []
       if (renderables.length > 0) partes.push(plural(renderables.length, "dibujo"))
       if (aplicados.length > 0) partes.push(plural(aplicados.length, "indicador"))
-      if (partes.length > 0) setEstado(`${partes.join(" y ")} restaurados`)
+      const sufijo = renderables.length + aplicados.length === 1 ? "restaurado" : "restaurados"
+      if (partes.length > 0) setEstado(`${partes.join(" y ")} ${sufijo}`)
     }
 
     void arrancar()
@@ -311,13 +315,29 @@ export function GraficoVelas({
       cancelado = true
       chartRef.current = null
       setSeleccionado(null)
+      setDibujosOcultos(false)
       dispose(contenedor)
     }
   }, [simbolo, intervalo])
 
+  // Oculta/muestra todos los dibujos sin borrarlos. Sin filtro, overrideOverlay
+  // alcanza a todos los overlays de todos los paneles (igual que removeOverlay()
+  // en Limpiar). El guardado no se ve afectado: getOverlays() también devuelve
+  // los ocultos y `visible` nunca se serializa.
+  const alternarDibujos = () => {
+    const chart = chartRef.current
+    if (!chart) return
+    const ocultar = !dibujosOcultos
+    chart.overrideOverlay({ visible: !ocultar })
+    setDibujosOcultos(ocultar)
+    setEstado(ocultar ? "Dibujos ocultos (sin borrar)" : "Dibujos visibles")
+  }
+
   const dibujar = (name: string) => {
     const chart = chartRef.current
     if (!chart) return
+    // Dibujar con el ojo cerrado no daría feedback: se muestra todo primero.
+    if (dibujosOcultos) alternarDibujos()
     // Anotación y etiqueta pintan su extendData como texto: se pide al crear.
     if (name === "simpleAnnotation" || name === "simpleTag") {
       const texto = window.prompt("Texto:")
@@ -427,6 +447,7 @@ export function GraficoVelas({
     const chart = chartRef.current
     const copia = portapapelesRef.current
     if (!chart || !copia) return
+    if (dibujosOcultos) alternarDibujos()
     // Desplazado unas velas a la derecha para que se distinga del original.
     const datos = chart.getDataList()
     const delta = datos.length > 1 ? datos[1].timestamp - datos[0].timestamp : 86_400_000
@@ -559,7 +580,13 @@ export function GraficoVelas({
   return (
     <div className="flex min-h-0 flex-1 gap-2">
       {/* Barra de herramientas vertical, pegada al borde izquierdo del lienzo */}
-      <BarraHerramientas onDibujar={dibujar} onGuardar={() => void guardar()} onLimpiar={limpiar} />
+      <BarraHerramientas
+        onDibujar={dibujar}
+        onGuardar={() => void guardar()}
+        onLimpiar={limpiar}
+        dibujosOcultos={dibujosOcultos}
+        onAlternarDibujos={alternarDibujos}
+      />
 
       <div className="relative min-w-0 flex-1">
         <div

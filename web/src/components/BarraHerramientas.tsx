@@ -7,6 +7,8 @@ import {
   DollarSign,
   Equal,
   Eraser,
+  Eye,
+  EyeOff,
   Infinity,
   Minus,
   MoveHorizontal,
@@ -151,10 +153,14 @@ export function BarraHerramientas({
   onDibujar,
   onGuardar,
   onLimpiar,
+  dibujosOcultos,
+  onAlternarDibujos,
 }: {
   onDibujar: (name: string) => void
   onGuardar: () => void
   onLimpiar: () => void
+  dibujosOcultos: boolean
+  onAlternarDibujos: () => void
 }) {
   const [grupoAbierto, setGrupoAbierto] = useState<string | null>(null)
 
@@ -219,6 +225,20 @@ export function BarraHerramientas({
       )}
 
       <div className="my-1 h-px w-6 shrink-0 bg-border" />
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        title={dibujosOcultos ? "Mostrar dibujos" : "Ocultar dibujos"}
+        aria-label={dibujosOcultos ? "Mostrar dibujos" : "Ocultar dibujos"}
+        className={
+          dibujosOcultos
+            ? "text-primary hover:text-primary"
+            : "text-muted-foreground hover:text-foreground"
+        }
+        onClick={onAlternarDibujos}
+      >
+        {dibujosOcultos ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+      </Button>
       <Button
         variant="ghost"
         size="icon-sm"
