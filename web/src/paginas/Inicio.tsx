@@ -144,6 +144,9 @@ const VISIBILIDAD_INICIAL = Object.fromEntries(
 // antigua "tc-columnas" (visibilidad global) queda ignorada a propósito.
 const CLAVE_COLUMNAS = "tc-columnas-v2"
 
+// Pestaña activa por id de lista (no por índice: las listas se reordenan).
+const CLAVE_TAB = "tc-tab-lista"
+
 type VisibilidadPorLista = Record<string, Partial<Visibilidad>>
 
 function cargarVisibilidadPorLista(): VisibilidadPorLista {
@@ -642,7 +645,7 @@ function TablaLista({
 export function Inicio() {
   const [listas, setListas] = useState<Lista[] | null>(null)
   const [resumen, setResumen] = useState<Record<string, ResumenSimbolo>>({})
-  const [tab, setTab] = useState("")
+  const [tab, setTab] = useState(() => localStorage.getItem(CLAVE_TAB) ?? "")
   const [error, setError] = useState<string | null>(null)
   const [crearAbierto, setCrearAbierto] = useState(false)
   const [nombreNuevo, setNombreNuevo] = useState("")
@@ -655,6 +658,10 @@ export function Inicio() {
   useEffect(() => {
     localStorage.setItem(CLAVE_COLUMNAS, JSON.stringify(visiblesPorLista))
   }, [visiblesPorLista])
+
+  useEffect(() => {
+    if (tab) localStorage.setItem(CLAVE_TAB, tab)
+  }, [tab])
 
   const cargar = useCallback(async (): Promise<Lista[] | undefined> => {
     try {
