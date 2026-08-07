@@ -204,10 +204,16 @@ por símbolo, una fuente de verdad por familia de intervalos, auth de usuario
   se salta entero (verde engañoso, nada construido) si `confirm` no es
   exactamente `yes` en minúsculas o la rama no es `main`: comprobar siempre
   que el job `build-and-push` ejecutó sus pasos.
-- **El dispatch de "Deploy" por API (`gh workflow run`) dejó de funcionar**
-  desde esta máquina (403 "Must have admin rights to Repository"; la lectura
-  de runs y el push a main sí van) — desde 2026-08-07 el usuario lo lanza a
-  mano desde Actions. Si vuelve a funcionar, quitar esta nota.
+- **`gh workflow run` NUNCA ha funcionado** en este repo: da 403 "Must have
+  admin rights to Repository" (leer runs y hacer push a main sí van). No es
+  una regresión — está así desde 2026-07-26. El camino que SÍ funciona es el
+  PAT embebido en el remote (`git remote get-url origin`) contra la API de
+  dispatches: `POST /repos/.../actions/workflows/<id>/dispatches` con
+  `{"ref":"main","inputs":{"confirm":"yes"}}` → 204.
+- **El botón «Deploy» de Dokploy lo pulsa SIEMPRE el usuario** (norma
+  explícita, 2026-08-08). Construir la imagen en GHCR se puede automatizar;
+  el cambio de producción es decisión suya y no se automatiza ni se propone
+  automatizar.
 - **`backup-prd` ANTES** de cambios arriesgados y después de análisis
   importantes; el contenedor PRD es `trading-charts-2hwnph-charts-1` (si se
   recrea el project en Dokploy, cambia el hash → actualizar `Makefile.dev`).
