@@ -7,78 +7,85 @@ Fondos UCITS resueltos SOLO con Yahoo (Morningstar descartado por
 licencia/complejidad). La app hace todo lo pedido: gráfico con intervalos
 1H/4H/1D/1S/1M, indicadores (con ojo de mostrar/ocultar en su leyenda) y
 dibujos por símbolo persistentes (texto seleccionable/arrastrable, fieles a
-su PANEL, y ahora con un ojo GLOBAL para ocultar/mostrar todos de golpe sin
-borrarlos), barra de dibujo completa, listas y símbolos reordenables
-arrastrando filas/tabs, pestaña activa de Inicio persistente entre
-navegaciones/F5, y adaptación móvil/tablet (top bar sin solape, gráfico en
-modo consulta, lista estilo Investing en Inicio, dibujos bloqueados en
-móvil). El buscador de Binance cubre pares USDT y USDC. Nueve redeploys
-reales en PRD sin incidencias. El usuario ya usa la app en real (listas y
-símbolos propios, análisis guardados, intradía 1h, desde PC y móvil). Sin
-pendientes bloqueantes; un fleco cosmético opcional (ver Notas Importantes).
+su PANEL, con ojo GLOBAL para ocultar/mostrar todos de golpe sin borrarlos),
+barra de dibujo completa, listas y símbolos reordenables arrastrando
+filas/tabs, pestaña activa de Inicio persistente entre navegaciones/F5,
+adaptación móvil/tablet, y ahora **velas que se refrescan solas** al abrir el
+gráfico (refresco perezoso, sin scheduler). El buscador de Binance cubre
+pares USDT y USDC. Diez redeploys reales en PRD sin incidencias. El usuario
+ya usa la app en real (listas y símbolos propios, análisis guardados,
+intradía 1h, desde PC y móvil). Sin pendientes bloqueantes; un fleco
+cosmético opcional (ver Notas Importantes).
 
 ## 📍 Última Sesión Completada
 
-### Fecha: 2026-08-03 — "pestaña activa persistente + ojo global de dibujos"
+### Fecha: 2026-08-07 — "las velas se refrescan solas al abrir el gráfico"
 
 ### Contexto de la Sesión:
 
-Tras usar la app en real, el usuario pidió dos pulidos de UX. Ambos
-implementados en rama `feat/pestana-activa-y-ojo-dibujos` (conservada),
-mergeada fast-forward a main y desplegada.
+El usuario notó el gráfico de Unity (U) congelado en una cotización de hace
+dos semanas mientras Yahoo ya estaba actualizado. Diagnóstico: las velas NO
+se refrescaban NUNCA (sin scheduler/cron/`setInterval`; el parquet solo se
+escribía al añadir símbolo por el buscador o con `make datos` a mano, que en
+PRD no ejecuta nadie). La maquinaria incremental ya existía y funcionaba;
+nadie la llamaba.
 
 ### Trabajo Completado:
 
-- ✅ **Pestaña activa de Inicio persistente** (`db23e43`): al volver de un
-  gráfico (o tras F5) se restaura la pestaña de lista en la que estabas.
-  localStorage `tc-tab-lista`, por ID de lista (no índice: las listas se
-  reordenan); el fallback ya existente a la primera lista cubre listas
-  borradas. Cambio mínimo en `web/src/paginas/Inicio.tsx` (~8 líneas).
-- ✅ **Ojo global de dibujos** (`3a2d225`): botón Eye/EyeOff en la barra
-  vertical de dibujo (tras el separador, antes de Guardar) que oculta/muestra
-  TODOS los dibujos sin borrarlos vía `overrideOverlay({visible})` de
-  KLineChart 10.0.0 — sin filtro alcanza todos los overlays de todos los
-  paneles (mismo mecanismo interno que Limpiar con `removeOverlay()`).
-  Decisiones de diseño: estado de vista EFÍMERO (nunca se persiste; al
-  recargar o cambiar de intervalo los dibujos nacen visibles — evita el
-  susto de "¿dónde está mi análisis?"); dibujar o pegar con el ojo cerrado
-  muestra todo primero (convención TradingView); el guardado es inmune
-  (`getOverlays` devuelve también los ocultos y `visible` no se serializa).
-  En móvil no aparece (la barra entera se oculta en modo consulta). Mismo
-  commit: fix de concordancia "1 dibujo restaurado" (fleco preexistente
-  cazado por el ui-tester).
-- ✅ **Nota de start-session corregida** (`e37ef66`): `git_guard.py` solo
-  AVISA (siempre exit 0) de operaciones destructivas (reset --hard, force
-  push, checkout -- .) y no mira commits en main — la nota decía que
-  bloqueaba. Aclarado por el usuario y verificado leyendo el hook.
-- ✅ Verificación: `make lint` y `make build` limpios; ui-tester 14/14 PASS
-  (TEST A pestaña 7/7 incluyendo F5 y clave localStorage; TEST B ojo 7/7
-  incluyendo la prueba CRÍTICA de guardar con el ojo cerrado sin perder
-  dibujos — BTCUSDC como conejillo, restaurado a su estado previo), 0
-  errores de consola. El usuario validó a mano en dev y en PRD.
-- ✅ **Noveno redeploy real a PRD, verificado**: backup-prd previo
-  (`backups/dibujos_prd_20260803_135113.db`, 116K vs 32K del anterior del
-  27-jul — el usuario había dibujado mucho análisis nuevo, backup muy
-  oportuno); workflow Deploy disparado vía API de dispatches con el PAT del
-  remote (el `gh` local solo tiene lectura, patrón ya conocido), success
-  sobre el commit exacto `e37ef66`; Dokploy Deploy = clic manual del
-  usuario; verificación por CONTENIDO: `/api/salud` y SPA 200, bundle nuevo
-  `index-CtCvYecv.js` con los 4 marcadores (`tc-tab-lista`, "Ocultar
-  dibujos", "Dibujos ocultos (sin borrar)", "Dibujos visibles").
+- ✅ **Refresco perezoso de velas** (`2e0bd28`): `_refrescar()` en
+  `api/velas.py`, umbral 15 min medido sobre el **mtime del fichero** (no la
+  fecha de la última vela: en fin de semana/festivo no nace vela nueva y
+  redescargaría en cada carga). Fallo de red sirve el parquet viejo antes que
+  un 502, y el intento cuenta aunque falle (`_ultimo_intento`) para no
+  colgar cada carga con el timeout de 30s. Lock por parquet (`_lock_de`,
+  double-checked): endpoints síncronos en threadpool + `to_parquet` no
+  atómico + StrictMode duplicando el fetch en dev. `/api/resumen` NO
+  refresca a propósito (ya es live; refrescar ahí dispararía una descarga
+  por símbolo al abrir Inicio). Destapado en el mismo commit: Yahoo cuela en
+  el INTRADÍA una pseudo-vela del tick en vivo (timestamp fuera de rejilla,
+  volumen 0) que no se deduplica; se descarta al descargar y
+  `_sin_pseudo_velas()` limpia las que ya había en disco. El diario está
+  limpio (Yahoo no añade pseudo-vela ahí).
+- ✅ **Fecha de la lista = fecha del dato mostrado** (`ebf7ca5`): el
+  subtítulo móvil de `Inicio.tsx` mezclaba precio live con fecha del parquet.
+  Ahora usa la fecha del quote si hay cotización viva, si no la de la última
+  vela, y **solo se muestra si no es de hoy** (si saliera siempre sería ruido
+  repetido; así señala precios desactualizados: fondos sin NAV, acciones en
+  fin de semana). Nuevo helper `hoyISO()` en `web/src/lib/formato.ts` (UTC).
+- ✅ CLAUDE.md actualizado con ambas decisiones de diseño.
+- ✅ Verificación: `make lint`/`make build` limpios; E2E backend por HTTP en
+  1d/1w/1h/4h (404 correcto, idempotencia sin duplicados, concurrencia 8
+  simultáneas sin corrupción, caché por mtime, ~0,5s primera carga / 0,01s
+  siguientes); E2E navegador (Playwright) en Inicio móvil, gráfico diario y
+  1H, 0 errores de consola.
+- ✅ **Décimo redeploy real a PRD, verificado**: backup-prd previo
+  (`backups/dibujos_prd_20260807_212122.db`, 132K vs 116K del 3-ago, íntegro,
+  21 símbolos con dibujos/6 listas/40 símbolos); rama
+  `feat/refresco-velas` (conservada) mergeada fast-forward, deploy vía API
+  de dispatches, success sobre `ebf7ca5`; verificado bundle idéntico al
+  build local, **U pasó de 31,71 a 43,02 con vela de hoy** (refresco
+  disparado solo al abrir el usuario su gráfico), caché confirmada. Acceso
+  de verificación: credenciales de PRD distintas de dev; se comprobó por SSH
+  con `/app/.venv/bin/python` dentro del contenedor (el `python3` del
+  sistema no tiene pandas).
+- ✅ **Decisión explícita del usuario**: se le ofreció un calentamiento único
+  por SSH para refrescar los 50 símbolos de PRD de golpe. Lo RECHAZÓ — "lo
+  dejamos como está y que se vayan actualizando 1 a 1 no hay problema por
+  eso". No proponer de nuevo un warm-up masivo.
 
 ### Estado al Finalizar:
 
-- `main` en `e37ef66` (+ este cierre); local, `origin/main` y PRD
-  sincronizados. Rama `feat/pestana-activa-y-ojo-dibujos` conservada en
-  `e37ef66`.
-- Servidores dev apagados. BTCUSDC (conejillo de dev) restaurado a vacío.
-- El usuario ha purgado `backups/` dejando solo los 2 últimos (27-jul 32K y
-  03-ago 116K).
+- `main` en `ebf7ca5` (+ este cierre); local, `origin/main` y PRD
+  sincronizados. Rama `feat/refresco-velas` conservada.
+- Servidores dev apagados. Lista 2 de dev restaurada a [GOOG] tras la prueba.
+- PRD tiene 50 parquets diarios: solo U al día tras esta sesión; el resto se
+  irán poniendo al día 1 a 1 al abrirse (decisión explícita, ver arriba).
+  2 parquets 1h de PRD (MSFT, SPCX) conservan 1 pseudo-vela cada uno; se
+  limpian solos la próxima vez que se abra su 1H.
 
 ### Próximos Pasos Sugeridos:
 
-1. Sin acción predefinida: el usuario sigue probando la app y avisará si
-   encuentra algún detalle más.
+1. Sin acción predefinida: el usuario sigue usando la app y avisará.
 2. Vista dual diario+disparo en PC sigue en backlog de memoria; requiere
    decidir el modelo de guardado ANTES de tocar código (riesgo de pisado
    entre dos paneles del mismo símbolo).
@@ -86,11 +93,12 @@ mergeada fast-forward a main y desplegada.
 
 ---
 🔴 [FIN DE SESIÓN - BREAKPOINT]
-📅 Fecha: 2026-08-03
-🎯 Estado: Producción al día con la pestaña activa de Inicio persistente y
-    el ojo global de dibujos (ocultar/mostrar sin borrar) desplegados y
-    verificados E2E; noveno redeploy real a PRD con backup previo oportuno.
-    Sin pendientes bloqueantes.
+📅 Fecha: 2026-08-07
+🎯 Estado: Producción al día con refresco perezoso de velas (15 min, mtime,
+    sin scheduler) y fecha de lista consistente con el dato mostrado,
+    desplegados y verificados E2E; décimo redeploy real a PRD con backup
+    previo. El usuario rechazó explícitamente un warm-up masivo de PRD — se
+    actualizará símbolo a símbolo al abrirse. Sin pendientes bloqueantes.
 ⏭️  Retomar: sin acción predefinida — esperar feedback del usuario, o
     abordar la vista dual (diario + intervalo de disparo) si toca sesión
     dedicada.
@@ -98,6 +106,10 @@ mergeada fast-forward a main y desplegada.
 
 ## 📝 Sesiones Anteriores (Resumen)
 
+- 2026-08-03: pestaña activa de Inicio persistente por ID de lista
+  (`db23e43`) y ojo global de dibujos ocultar/mostrar sin borrar
+  (`3a2d225`, `overrideOverlay({visible})`, estado efímero no persistido);
+  noveno redeploy a PRD verificado.
 - 2026-07-28/29: adaptación móvil/tablet completa (top bar, gráfico en modo
   consulta, lista estilo Investing en Inicio) y fix de persistencia de
   dibujos por PANEL de indicador (`paneId`, esquema `panel_<INDICADOR>`
@@ -137,6 +149,16 @@ por símbolo, una fuente de verdad por familia de intervalos, auth de usuario
 
 ## ⚠️ Notas Importantes
 
+- Las velas se refrescan solas al abrir el gráfico (umbral 15 min sobre el
+  mtime del parquet, ver `_refrescar()` en `api/velas.py`); NO hay
+  scheduler/cron y `/api/resumen` no refresca (sus cotizaciones ya son live).
+- La última vela es la de la sesión EN CURSO: los indicadores se mueven sobre
+  ella hasta el cierre (repintado normal, como TradingView).
+- Yahoo cuela una pseudo-vela del tick en vivo en el intradía (volumen 0,
+  timestamp fuera de rejilla); se filtra al descargar y al cargar
+  (`_sin_pseudo_velas()`) — explica una vela plana rara si aparece en 1h/4h.
+- Verificar PRD por dentro (pandas no está en el `python3` del sistema):
+  `ssh ssh-bazinguer-vps "docker exec -i -w /app trading-charts-2hwnph-charts-1 /app/.venv/bin/python -" < script.py`
 - El crumb de Yahoo (cotizaciones live/ampliado/resultados) es oficioso y puede
   romperse: hay fallback silencioso al cierre del parquet — si un día las
   cotizaciones se ven "congeladas", mirar `api/cotizaciones.py`.
