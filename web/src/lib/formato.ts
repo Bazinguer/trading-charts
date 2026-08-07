@@ -14,6 +14,11 @@ export function porcentaje(valor: number): string {
   return `${valor > 0 ? "+" : ""}${texto} %`
 }
 
+/** Hoy en "YYYY-MM-DD" UTC, para comparar con las fechas que da la API. */
+export function hoyISO(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
 /** Fecha "YYYY-MM-DD" → dd/mm/aaaa (sin pasar por Date: no hay zona horaria). */
 export function fechaCorta(iso: string): string {
   const [a, m, d] = iso.split("-")

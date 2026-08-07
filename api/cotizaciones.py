@@ -1,7 +1,7 @@
 """Cotizaciones en vivo para /api/resumen: Binance y Yahoo, en lote.
 
-Devuelve por símbolo un dict con las claves del contrato del resumen (ultimo,
-var_pct, apertura, maximo, minimo, ampliado, ampliado_pct, resultados); las
+Devuelve por símbolo un dict con las claves del contrato del resumen (fecha,
+ultimo, var_pct, apertura, maximo, minimo, ampliado, ampliado_pct, resultados); las
 que la fuente no da, no aparecen o van a None y el resumen conserva lo del
 parquet. La fuente de cada símbolo sale de la tabla simbolos; los no
 registrados no se consultan.
@@ -67,7 +67,10 @@ def _binance(lista: list[str]) -> dict[str, dict]:
             precios = respuesta.json()
     except (httpx.HTTPError, ValueError):
         return {}
-    return {p["symbol"]: {"ultimo": float(p["price"])} for p in precios}
+    # /ticker/price no trae timestamp, pero la cripto cotiza 24/7: el precio
+    # es de este instante.
+    hoy = datetime.now(UTC).date().isoformat()
+    return {p["symbol"]: {"ultimo": float(p["price"]), "fecha": hoy} for p in precios}
 
 
 def _yahoo(lista: list[str]) -> dict[str, dict]:
@@ -117,7 +120,9 @@ def _normalizar(quote: dict) -> dict:
 
     ampliado = post-market si hay, si no pre-market (cripto/índices/fondos no
     tienen ninguno y queda None). resultados = fecha UTC de los próximos
-    resultados, si Yahoo la da.
+    resultados, si Yahoo la da. fecha = la del propio quote
+    (regularMarketTime): con el mercado cerrado es la del último cierre, que
+    es justo lo que el precio representa.
     """
     ampliado = quote.get("postMarketPrice")
     ampliado_pct = quote.get("postMarketChangePercent")
@@ -125,7 +130,9 @@ def _normalizar(quote: dict) -> dict:
         ampliado = quote.get("preMarketPrice")
         ampliado_pct = quote.get("preMarketChangePercent")
     resultados = quote.get("earningsTimestamp")
+    momento = quote.get("regularMarketTime")
     return {
+        "fecha": _fecha(momento),
         "ultimo": quote.get("regularMarketPrice"),
         "var_pct": _redondeado(quote.get("regularMarketChangePercent")),
         "apertura": quote.get("regularMarketOpen"),
@@ -133,10 +140,12 @@ def _normalizar(quote: dict) -> dict:
         "minimo": quote.get("regularMarketDayLow"),
         "ampliado": ampliado,
         "ampliado_pct": _redondeado(ampliado_pct),
-        "resultados": (
-            datetime.fromtimestamp(resultados, tz=UTC).date().isoformat() if resultados else None
-        ),
+        "resultados": _fecha(resultados),
     }
+
+
+def _fecha(momento: int | None) -> str | None:
+    return datetime.fromtimestamp(momento, tz=UTC).date().isoformat() if momento else None
 
 
 def _redondeado(valor: float | None) -> float | None:

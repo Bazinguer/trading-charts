@@ -65,7 +65,7 @@ import {
   type ResumenSimbolo,
   type TipoActivo,
 } from "@/lib/api"
-import { claseSigno, fechaCorta, porcentaje, precio } from "@/lib/formato"
+import { claseSigno, fechaCorta, hoyISO, porcentaje, precio } from "@/lib/formato"
 import { cn } from "@/lib/utils"
 
 /* ── Columnas de la tabla ─────────────────────────────────────────────── */
@@ -389,6 +389,11 @@ function Celda({ col, simbolo, r }: { col: Columna; simbolo: string; r?: Resumen
 // Fila móvil estilo Investing: nombre y símbolo a la izquierda, último y
 // % var. a la derecha, con la línea del horario ampliado (🌙) si el activo
 // la tiene. Toda la fila lleva al gráfico.
+//
+// La fecha solo acompaña al símbolo cuando el dato NO es de hoy: si sale, es
+// la señal de que ese precio se quedó atrás (mercado cerrado, fondo sin NAV
+// del día), y con todo al día la lista queda limpia en vez de repetir la
+// fecha de hoy en cada fila.
 function FilaMovil({
   simbolo,
   r,
@@ -407,7 +412,7 @@ function FilaMovil({
       <div className="min-w-0">
         <p className="truncate text-[15px] font-medium">{r?.nombre ?? simbolo}</p>
         <p className="mt-0.5 truncate text-xs text-muted-foreground">
-          {r?.fecha ? `${fechaCorta(r.fecha)} · ${simbolo}` : simbolo}
+          {r?.fecha && r.fecha !== hoyISO() ? `${fechaCorta(r.fecha)} · ${simbolo}` : simbolo}
         </p>
       </div>
       <div className="shrink-0 text-right tabular-nums">
