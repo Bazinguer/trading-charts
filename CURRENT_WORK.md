@@ -10,102 +10,115 @@ dibujos por símbolo persistentes (texto seleccionable/arrastrable, fieles a
 su PANEL, con ojo GLOBAL para ocultar/mostrar todos de golpe sin borrarlos),
 barra de dibujo completa, listas y símbolos reordenables arrastrando
 filas/tabs, pestaña activa de Inicio persistente entre navegaciones/F5,
-adaptación móvil/tablet, y ahora **velas que se refrescan solas** al abrir el
-gráfico (refresco perezoso, sin scheduler). El buscador de Binance cubre
-pares USDT y USDC. Diez redeploys reales en PRD sin incidencias. El usuario
-ya usa la app en real (listas y símbolos propios, análisis guardados,
-intradía 1h, desde PC y móvil). Sin pendientes bloqueantes; un fleco
-cosmético opcional (ver Notas Importantes).
+adaptación móvil/tablet, velas que se refrescan solas al abrir el gráfico
+(refresco perezoso, sin scheduler), y ahora **filas de tabla abribles en
+pestaña nueva** (clic secundario/central/Ctrl+clic) sin romper el arrastre
+para reordenar. El buscador de Binance cubre pares USDT y USDC. Once
+redeploys reales en PRD sin incidencias. El usuario ya usa la app en real
+(listas y símbolos propios, análisis guardados, intradía 1h, desde PC y
+móvil). Sin pendientes bloqueantes; un fleco cosmético opcional (ver Notas
+Importantes).
 
 ## 📍 Última Sesión Completada
 
-### Fecha: 2026-08-07 — "las velas se refrescan solas al abrir el gráfico"
+### Fecha: 2026-08-07 — "abrir el gráfico de una fila en pestaña nueva"
 
 ### Contexto de la Sesión:
 
-El usuario notó el gráfico de Unity (U) congelado en una cotización de hace
-dos semanas mientras Yahoo ya estaba actualizado. Diagnóstico: las velas NO
-se refrescaban NUNCA (sin scheduler/cron/`setInterval`; el parquet solo se
-escribía al añadir símbolo por el buscador o con `make datos` a mano, que en
-PRD no ejecuta nadie). La maquinaria incremental ya existía y funcionaba;
-nadie la llamaba.
+El usuario pidió poder abrir las filas de la tabla en otra pestaña con clic
+secundario. Diagnóstico: las filas de Inicio y Gráficos navegaban con un
+`onClick` de JS sobre el `<tr>`, así que el navegador no sabía que había un
+destino — sin menú de "Abrir en pestaña nueva", sin efecto en clic central,
+y Ctrl+clic navegando en la misma pestaña. La ruta real (`/grafico/:simbolo`)
+ya existía con `BrowserRouter`; faltaba declararla en el DOM.
 
 ### Trabajo Completado:
 
-- ✅ **Refresco perezoso de velas** (`2e0bd28`): `_refrescar()` en
-  `api/velas.py`, umbral 15 min medido sobre el **mtime del fichero** (no la
-  fecha de la última vela: en fin de semana/festivo no nace vela nueva y
-  redescargaría en cada carga). Fallo de red sirve el parquet viejo antes que
-  un 502, y el intento cuenta aunque falle (`_ultimo_intento`) para no
-  colgar cada carga con el timeout de 30s. Lock por parquet (`_lock_de`,
-  double-checked): endpoints síncronos en threadpool + `to_parquet` no
-  atómico + StrictMode duplicando el fetch en dev. `/api/resumen` NO
-  refresca a propósito (ya es live; refrescar ahí dispararía una descarga
-  por símbolo al abrir Inicio). Destapado en el mismo commit: Yahoo cuela en
-  el INTRADÍA una pseudo-vela del tick en vivo (timestamp fuera de rejilla,
-  volumen 0) que no se deduplica; se descarta al descargar y
-  `_sin_pseudo_velas()` limpia las que ya había en disco. El diario está
-  limpio (Yahoo no añade pseudo-vela ahí).
-- ✅ **Fecha de la lista = fecha del dato mostrado** (`ebf7ca5`): el
-  subtítulo móvil de `Inicio.tsx` mezclaba precio live con fecha del parquet.
-  Ahora usa la fecha del quote si hay cotización viva, si no la de la última
-  vela, y **solo se muestra si no es de hoy** (si saliera siempre sería ruido
-  repetido; así señala precios desactualizados: fondos sin NAV, acciones en
-  fin de semana). Nuevo helper `hoyISO()` en `web/src/lib/formato.ts` (UTC).
-- ✅ CLAUDE.md actualizado con ambas decisiones de diseño.
-- ✅ Verificación: `make lint`/`make build` limpios; E2E backend por HTTP en
-  1d/1w/1h/4h (404 correcto, idempotencia sin duplicados, concurrencia 8
-  simultáneas sin corrupción, caché por mtime, ~0,5s primera carga / 0,01s
-  siguientes); E2E navegador (Playwright) en Inicio móvil, gráfico diario y
-  1H, 0 errores de consola.
-- ✅ **Décimo redeploy real a PRD, verificado**: backup-prd previo
-  (`backups/dibujos_prd_20260807_212122.db`, 132K vs 116K del 3-ago, íntegro,
-  21 símbolos con dibujos/6 listas/40 símbolos); rama
-  `feat/refresco-velas` (conservada) mergeada fast-forward, deploy vía API
-  de dispatches, success sobre `ebf7ca5`; verificado bundle idéntico al
-  build local, **U pasó de 31,71 a 43,02 con vela de hoy** (refresco
-  disparado solo al abrir el usuario su gráfico), caché confirmada. Acceso
-  de verificación: credenciales de PRD distintas de dev; se comprobó por SSH
-  con `/app/.venv/bin/python` dentro del contenedor (el `python3` del
-  sistema no tiene pandas).
-- ✅ **Decisión explícita del usuario**: se le ofreció un calentamiento único
-  por SSH para refrescar los 50 símbolos de PRD de golpe. Lo RECHAZÓ — "lo
-  dejamos como está y que se vayan actualizando 1 a 1 no hay problema por
-  eso". No proponer de nuevo un warm-up masivo.
+- ✅ **Enlaces reales en las filas** (`b94314f`): la celda del símbolo (y el
+  botón ↗ de Inicio) pasan a ser `<Link>` de react-router-dom — un `<a href>`
+  real que solo se aparta ante Ctrl/Cmd/Shift+clic y botón central. El resto
+  de la fila conserva su `onClick` de conveniencia. Encapsulado en
+  `<EnlaceGrafico>` (`Inicio.tsx`); `Graficos.tsx` usa un `<Link>` directo
+  (esa tabla no tiene arrastre). `FilaMovil` NO se tocó (sin clic secundario
+  en un dedo).
+- ✅ **Dos trampas no obvias, resueltas** (comentadas en el propio
+  `Inicio.tsx` y recogidas abajo en Notas Importantes):
+  `draggable={false}` en el ancla es OBLIGATORIO (un `<a>` es arrastrable de
+  nativo y arrastraría su URL en vez de disparar el `dragstart` de la fila,
+  rompiendo el reordenado justo por el punto más natural para agarrarla);
+  `stopPropagation` en su `onClick` es OBLIGATORIO (el `onClick` del
+  `<TableRow>` sigue vivo y burbujea; sin esto un Ctrl+clic abriría pestaña
+  Y ADEMÁS navegaría en la actual).
+- ✅ **Asumido a propósito**: en pestaña nueva se pierde el `state` del
+  router, así que el enlace de volver del gráfico cae en su destino por
+  defecto (`/graficos`) en vez de «Inicio» — codificar el origen en la URL
+  se descartó por YAGNI (caso marginal).
+- ✅ Verificación: `make lint`/`make build` limpios; Playwright contra dev:
+  clic central y Ctrl+clic abren pestaña sin navegar la actual, clic normal
+  genera una sola entrada de historial, arrastre agarrando por el símbolo
+  reordenó y restauró BTCUSDC correctamente, enlace de volver dice «Inicio»,
+  0 errores de consola (probado también en Gráficos). Verificado además el
+  BUNDLE DE PRODUCCIÓN: la API local sirve `web/dist` si existe, así que
+  `:8010` sirvió el mismo `index-fDEJ4jxX.js` que PRD.
+- ✅ **Undécimo redeploy real a PRD, verificado**: backup previo
+  (`backups/dibujos_prd_20260807_224631.db`, 132K, íntegro, 21 símbolos con
+  dibujos/6 listas/40 símbolos); rama `feat/enlaces-pestana-nueva` mergeada
+  fast-forward a main y BORRADA (local y remota) a petición del usuario —
+  a diferencia de sesiones anteriores, que las conservaban; imagen GHCR
+  `sha256:28b660470a2d1681…` (tags `b94314fa…` + `latest`, mismo digest);
+  contenedor `Up (healthy)`, 0 reinicios, `RepoDigest` coincide, bundle
+  servido idéntico byte a byte al build local (`sha256 feb335d6…`), logs
+  limpios, datos intactos (dibujos.db 132K íntegra, 21/6/40, 53 parquets).
+
+### INCIDENCIA OPERATIVA (ver también Notas Importantes):
+
+Ya NO se puede disparar el workflow "Deploy" por API desde esta máquina: el
+token de `gh` devuelve **HTTP 403 "Must have admin rights to Repository"**
+en el dispatch de `Bazinguer/trading-charts` (la lectura de runs y el push a
+main sí funcionan). En sesiones anteriores el dispatch funcionaba; ahora no.
+El usuario tuvo que lanzarlo a mano desde Actions → Deploy → Run workflow.
 
 ### Estado al Finalizar:
 
-- `main` en `ebf7ca5` (+ este cierre); local, `origin/main` y PRD
-  sincronizados. Rama `feat/refresco-velas` conservada.
-- Servidores dev apagados. Lista 2 de dev restaurada a [GOOG] tras la prueba.
-- PRD tiene 50 parquets diarios: solo U al día tras esta sesión; el resto se
-  irán poniendo al día 1 a 1 al abrirse (decisión explícita, ver arriba).
-  2 parquets 1h de PRD (MSFT, SPCX) conservan 1 pseudo-vela cada uno; se
-  limpian solos la próxima vez que se abra su 1H.
+- `main` en `b94314f` (+ este cierre); local, `origin/main` y PRD
+  sincronizados. En remoto solo queda la rama `main` (las `feat/*` fusionadas
+  de sesiones anteriores siguen solo en local, ver pendiente abajo).
+- Servidores dev apagados. Lista Cripto de dev restaurada a su orden
+  original [BTCUSDC, ETHUSDT, BTCUSDT] tras la prueba de arrastre.
 
 ### Próximos Pasos Sugeridos:
 
-1. Sin acción predefinida: el usuario sigue usando la app y avisará.
-2. Vista dual diario+disparo en PC sigue en backlog de memoria; requiere
-   decidir el modelo de guardado ANTES de tocar código (riesgo de pisado
-   entre dos paneles del mismo símbolo).
-3. Fleco cosmético del logout sigue pendiente (no bloqueante).
+1. **Ofrecido y no resuelto**: barrer 8 ramas locales antiguas ya fusionadas
+   y sin gemela en remoto (`feat/base-app`, `feat/grafico`,
+   `feat/ojo-indicadores`, `feat/pestana-activa-y-ojo-dibujos`,
+   `feat/refresco-velas`, `feat/reordenar-simbolos`, `feat/responsive-movil`,
+   `fix/mover-dibujos-texto`). El usuario no se pronunció — tarea menor.
+2. Investigar/resolver los permisos de `gh` para poder volver a disparar
+   "Deploy" por API (o asumir que el lanzamiento manual es lo normal ahora).
+3. Vista dual diario+disparo en PC sigue en backlog de memoria; requiere
+   decidir el modelo de guardado ANTES de tocar código.
+4. Fleco cosmético del logout sigue pendiente (no bloqueante).
 
 ---
 🔴 [FIN DE SESIÓN - BREAKPOINT]
 📅 Fecha: 2026-08-07
-🎯 Estado: Producción al día con refresco perezoso de velas (15 min, mtime,
-    sin scheduler) y fecha de lista consistente con el dato mostrado,
-    desplegados y verificados E2E; décimo redeploy real a PRD con backup
-    previo. El usuario rechazó explícitamente un warm-up masivo de PRD — se
-    actualizará símbolo a símbolo al abrirse. Sin pendientes bloqueantes.
-⏭️  Retomar: sin acción predefinida — esperar feedback del usuario, o
-    abordar la vista dual (diario + intervalo de disparo) si toca sesión
-    dedicada.
+🎯 Estado: Filas de tabla abribles en pestaña nueva (clic secundario/central/
+    Ctrl+clic) sin romper el arrastre para reordenar, desplegado y verificado
+    E2E; undécimo redeploy real a PRD con backup previo. Rama de feature
+    borrada tras el merge (a petición del usuario). El dispatch del workflow
+    "Deploy" por API dejó de funcionar (403 de permisos) — lanzamiento manual
+    por ahora. Sin pendientes bloqueantes.
+⏭️  Retomar: sin acción predefinida — esperar feedback del usuario, o barrer
+    las 8 ramas locales obsoletas si se confirma, o abordar la vista dual
+    (diario + intervalo de disparo) si toca sesión dedicada.
 ---
 
 ## 📝 Sesiones Anteriores (Resumen)
 
+- 2026-08-07 (sesión anterior): refresco perezoso de velas (`2e0bd28`, 15
+  min sobre mtime, sin scheduler, filtra pseudo-velas de Yahoo) y fecha de
+  lista consistente con el dato mostrado (`ebf7ca5`); décimo redeploy a PRD
+  verificado; usuario rechazó explícitamente un warm-up masivo de PRD.
 - 2026-08-03: pestaña activa de Inicio persistente por ID de lista
   (`db23e43`) y ojo global de dibujos ocultar/mostrar sin borrar
   (`3a2d225`, `overrideOverlay({visible})`, estado efímero no persistido);
@@ -179,8 +192,22 @@ por símbolo, una fuente de verdad por familia de intervalos, auth de usuario
   barra de dibujo) solo admiten comandos absolutos M/L/H/V/Q/C/Z: el parser
   resetea el punto de partida en cada comando y arcos (`A`)/relativos se
   rompen (ver icono del ojo, `estilosGrafico.ts`).
+- El enlace al gráfico de una fila (`<EnlaceGrafico>` en `Inicio.tsx`, `<Link>`
+  en `Graficos.tsx`) lleva DOS guardas que parecen decorativas y no lo son:
+  `draggable={false}` (sin él el ancla arrastra su URL y roba el `dragstart`
+  de la fila → se rompe el reordenado de símbolos justo al agarrarla por el
+  punto más natural) y `stopPropagation` en su `onClick` (sin él, el `onClick`
+  del `<TableRow>` burbujea y un Ctrl+clic abre pestaña nueva Y ADEMÁS navega
+  en la actual). No quitarlos al "limpiar".
 - **Deploy de nueva versión**: merge a main → Actions "Deploy" (confirm=yes)
-  → Dokploy Deploy (el custom command hace `--pull always`).
+  → Dokploy Deploy (el custom command hace `--pull always`). El workflow
+  se salta entero (verde engañoso, nada construido) si `confirm` no es
+  exactamente `yes` en minúsculas o la rama no es `main`: comprobar siempre
+  que el job `build-and-push` ejecutó sus pasos.
+- **El dispatch de "Deploy" por API (`gh workflow run`) dejó de funcionar**
+  desde esta máquina (403 "Must have admin rights to Repository"; la lectura
+  de runs y el push a main sí van) — desde 2026-08-07 el usuario lo lanza a
+  mano desde Actions. Si vuelve a funcionar, quitar esta nota.
 - **`backup-prd` ANTES** de cambios arriesgados y después de análisis
   importantes; el contenedor PRD es `trading-charts-2hwnph-charts-1` (si se
   recrea el project en Dokploy, cambia el hash → actualizar `Makefile.dev`).
