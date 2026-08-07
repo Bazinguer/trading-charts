@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { ChartCandlestick } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 
 import { EmptyState } from "@/components/EmptyState"
 import { PageHeader } from "@/components/PageHeader"
@@ -81,7 +81,19 @@ export function Graficos() {
                     })
                   }
                 >
-                  <TableCell className="font-medium">{a.simbolo}</TableCell>
+                  <TableCell className="font-medium">
+                    {/* Ancla real: el clic secundario sobre el símbolo ofrece
+                        «Abrir en pestaña nueva». `stopPropagation` evita que
+                        el onClick de la fila navegue además en esta pestaña. */}
+                    <Link
+                      to={`/grafico/${encodeURIComponent(a.simbolo)}`}
+                      state={{ from: "/graficos" }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:underline"
+                    >
+                      {a.simbolo}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{a.nombre ?? "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">{a.dibujos}</TableCell>
                   <TableCell className="text-right tabular-nums">{a.indicadores}</TableCell>

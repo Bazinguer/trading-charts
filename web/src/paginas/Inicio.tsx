@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ComponentType } from "react"
+import { useCallback, useEffect, useState, type ComponentProps, type ComponentType } from "react"
 import {
   ArrowDown,
   ArrowUp,
@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 
 import { EmptyState } from "@/components/EmptyState"
 import { PageHeader } from "@/components/PageHeader"
@@ -351,12 +351,52 @@ function CabeceraOrdenable({
   )
 }
 
+// Enlace al gráfico de un símbolo. Es un `<a href>` de verdad: solo así el
+// navegador ofrece «Abrir en pestaña nueva» en el clic secundario, y `<Link>`
+// ya se aparta solo ante Ctrl/Cmd/Shift+clic y botón central.
+//
+// Los dos guardas no son opcionales:
+// - `draggable={false}` — un ancla arrastra su URL de nativo y robaría el
+//   `dragstart` de la fila, rompiendo el reordenado manual justo por el sitio
+//   más natural para agarrarla.
+// - `stopPropagation` — el `onClick` de la fila sigue vivo y burbujea; sin
+//   esto un Ctrl+clic abriría pestaña nueva Y navegaría en la actual.
+//
+// En pestaña nueva se pierde el `state` (es una carga limpia), así que el
+// enlace de volver del gráfico cae en su destino por defecto. Asumido.
+function EnlaceGrafico({
+  simbolo,
+  onClick,
+  ...resto
+}: Omit<ComponentProps<typeof Link>, "to" | "state"> & { simbolo: string }) {
+  return (
+    <Link
+      {...resto}
+      to={`/grafico/${encodeURIComponent(simbolo)}`}
+      state={{ from: "/" }}
+      draggable={false}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick?.(e)
+      }}
+    />
+  )
+}
+
 function Celda({ col, simbolo, r }: { col: Columna; simbolo: string; r?: ResumenSimbolo }) {
   switch (col.id) {
     case "nombre":
       return <TableCell className="text-muted-foreground">{r?.nombre ?? "—"}</TableCell>
     case "simbolo":
-      return <TableCell className="font-medium">{simbolo}</TableCell>
+      // Ancla REAL (no el onClick de la fila): es lo único que hace que el
+      // navegador ofrezca "Abrir en pestaña nueva" en el clic secundario.
+      return (
+        <TableCell className="font-medium">
+          <EnlaceGrafico simbolo={simbolo} className="hover:underline">
+            {simbolo}
+          </EnlaceGrafico>
+        </TableCell>
+      )
     case "var_pct":
       return (
         <TableCell className={cn("text-right tabular-nums", claseSigno(r?.var_pct))}>
@@ -607,17 +647,18 @@ function TablaLista({
                     <TableCell className="py-1.5 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button
+                          asChild
                           variant="ghost"
                           size="icon-sm"
-                          aria-label={`Ver gráfico de ${simbolo}`}
-                          title="Ver gráfico"
                           className="text-muted-foreground hover:text-foreground"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            irAlGrafico(simbolo)
-                          }}
                         >
-                          <ArrowUpRight />
+                          <EnlaceGrafico
+                            simbolo={simbolo}
+                            aria-label={`Ver gráfico de ${simbolo}`}
+                            title="Ver gráfico"
+                          >
+                            <ArrowUpRight />
+                          </EnlaceGrafico>
                         </Button>
                         <Button
                           variant="ghost"
