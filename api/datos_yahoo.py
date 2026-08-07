@@ -64,6 +64,14 @@ def descargar(ticker: str, cliente: httpx.Client, intervalo: str = "1d") -> pd.D
         }
     ).dropna(subset=["close"])
 
+    # Yahoo cuela al final del intradía una pseudo-vela con el tick en vivo
+    # (timestamp = meta.regularMarketTime, volumen 0). No es una vela, y su
+    # timestamp cae fuera de la rejilla horaria: al acumular no se deduplica
+    # con nada, así que el parquet ganaría una fila basura por cada refresco.
+    tick = (resultado.get("meta") or {}).get("regularMarketTime")
+    if intervalo != "1d" and tick is not None:
+        df = df[df["open_time"] != pd.to_datetime(tick, unit="s", utc=True)]
+
     if intervalo == "1d" and adjclose is not None:
         df["adjclose"] = pd.Series(adjclose).reindex(df.index)
         df = df.dropna(subset=["adjclose"])
@@ -88,6 +96,19 @@ def descargar(ticker: str, cliente: httpx.Client, intervalo: str = "1d") -> pd.D
     )
 
 
+def _sin_pseudo_velas(df: pd.DataFrame, intervalo: str) -> pd.DataFrame:
+    """Limpia las pseudo-velas del tick que los parquet acumularon antes.
+
+    descargar() ya no las incluye, pero cada descarga previa dejó una: se
+    reconocen por volumen 0 y por estar a menos de un intervalo de la vela
+    anterior. Descartar de más no tiene coste: la descarga cubre ~730 días y
+    devuelve la vela legítima en el refresco siguiente.
+    """
+    paso = df["open_time"].diff()
+    basura = (df["volume"] == 0) & paso.notna() & (paso < pd.Timedelta(intervalo))
+    return df[~basura].reset_index(drop=True)
+
+
 def actualizar(ticker: str, intervalo: str = "1d") -> Path:
     """Descarga y guarda el histórico de un ticker en su parquet.
 
@@ -101,11 +122,12 @@ def actualizar(ticker: str, intervalo: str = "1d") -> Path:
     destino = ruta_parquet(ticker, intervalo)
     if intervalo != "1d" and destino.exists():
         previo = pd.read_parquet(destino)
-        df = (
+        df = _sin_pseudo_velas(
             pd.concat([previo, df], ignore_index=True)
             .drop_duplicates(subset=["open_time"], keep="last")
             .sort_values("open_time")
-            .reset_index(drop=True)
+            .reset_index(drop=True),
+            intervalo,
         )
     df.to_parquet(destino, index=False)
     return destino

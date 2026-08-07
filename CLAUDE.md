@@ -31,11 +31,27 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
   OHLC ajustado por splits+dividendos — patrón heredado de stocks_lab); todo
   en parquet con el mismo contrato de columnas. UNA fuente de verdad POR
   FAMILIA en disco: del 1d se agregan 1w y 1M; del 1h se agrega el 4h. El 1h
-  se descarga bajo demanda la primera vez que se pide (ventana ~2 años,
-  simétrica con el límite intradía de Yahoo; en Yahoo las descargas sucesivas
-  ACUMULAN histórico local y llegan sin ajuste por splits). Al añadir un
-  símbolo por el buscador se descarga su histórico diario automáticamente.
-  Cobertura de fondos UCITS en Yahoo: irregular.
+  usa una ventana ~2 años, simétrica con el límite intradía de Yahoo; en Yahoo
+  las descargas sucesivas ACUMULAN histórico local y llegan sin ajuste por
+  splits. Al añadir un símbolo por el buscador se descarga su histórico
+  diario automáticamente. Cobertura de fondos UCITS en Yahoo: irregular.
+- Refresco PEREZOSO, no programado (`_refrescar` en `api/velas.py`): pedir
+  velas actualiza antes el parquet base si lleva más de 15 min sin escribirse.
+  Sin scheduler: en PRD nadie ejecuta `make datos`, y un cron refrescaría
+  símbolos que nadie mira. El umbral se mide sobre el MTIME del fichero, no
+  sobre la fecha de la última vela: en fin de semana o festivo no nace vela
+  nueva y un "¿la última es de hoy?" no se satisfaría nunca. Un fallo de red
+  sirve el parquet viejo antes que un 502, y el intento cuenta aunque falle
+  (una caída de la fuente no cuelga cada carga con su timeout). Lock por
+  parquet: los endpoints síncronos van en threadpool y `to_parquet` no es
+  atómico. `/api/resumen` NO refresca (sus cotizaciones ya son live y abrir
+  Inicio dispararía una descarga por símbolo).
+- La última vela es la de la sesión EN CURSO, como TradingView: los
+  indicadores se mueven sobre ella hasta el cierre. Yahoo cuela además en el
+  INTRADÍA una pseudo-vela con el tick en vivo (timestamp
+  `meta.regularMarketTime`, volumen 0) que no es una vela y que, fuera de la
+  rejilla horaria, no se deduplicaría al acumular: `api/datos_yahoo.py` la
+  descarta al descargar y limpia las que los parquet ya traían.
 - BD de dibujos: SQLite `data/dibujos.db`. En producción irá en volumen con
   backup — perder dibujos es perder el propósito del proyecto. Las listas de
   seguimiento viven en la misma BD (tablas `listas` y `lista_simbolos`).

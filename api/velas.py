@@ -3,28 +3,81 @@
 Cada vela sale como {timestamp(ms), open, high, low, close, volume}. Una
 fuente de verdad POR FAMILIA en disco: del diario se agregan semanal (semanas
 lunes-domingo, timestamp = lunes) y mensual (timestamp = día 1); del 1h se
-agrega el 4h (bloques alineados a 00 UTC). El parquet 1h se descarga bajo
-demanda la primera vez que se pide (Binance o Yahoo según la fuente del
-símbolo) y después se completa incremental.
+agrega el 4h (bloques alineados a 00 UTC).
+
+El parquet base se refresca PEREZOSAMENTE al pedir velas (ver _refrescar):
+nadie ejecuta `make datos` en producción, así que sin esto el gráfico se
+queda congelado en el día que se añadió el símbolo mientras /api/resumen sí
+muestra la cotización viva. La última vela puede ser la de la sesión EN CURSO
+(Binance y Yahoo la sirven a medio formar): es deliberado, como TradingView,
+y los indicadores se mueven sobre ella hasta el cierre.
 """
 
+import threading
+import time
+from pathlib import Path
+
+import httpx
 import pandas as pd
 
 from api import cotizaciones, datos, datos_yahoo, simbolos
 from api.datos import ruta_parquet
 
 INTERVALOS = ("1h", "4h", "1d", "1w", "1M")
+FRESCURA_SEGUNDOS = 15 * 60
+
+# Un lock por parquet: FastAPI sirve los endpoints síncronos en un threadpool,
+# así que dos peticiones del mismo símbolo pueden solaparse (el StrictMode de
+# React ya duplica el fetch en dev) y to_parquet no escribe de forma atómica.
+_locks: dict[str, threading.Lock] = {}
+_locks_lock = threading.Lock()
+_ultimo_intento: dict[str, float] = {}
 
 
-def _asegurar_1h(simbolo: str) -> None:
-    """Descarga el histórico 1h si aún no existe (primera vez que se pide)."""
-    if ruta_parquet(simbolo, "1h").exists():
+def _lock_de(clave: str) -> threading.Lock:
+    with _locks_lock:
+        return _locks.setdefault(clave, threading.Lock())
+
+
+def _al_dia(destino: Path) -> bool:
+    """Si el parquet se escribió hace poco, o si ya se intentó hace poco.
+
+    El umbral se mide sobre el mtime del FICHERO, no sobre la fecha de la
+    última vela: en fin de semana o festivo no nace vela nueva, así que un
+    "¿la última vela es de hoy?" no quedaría satisfecho nunca y volvería a
+    descargar en cada carga del gráfico. El intento cuenta aunque falle: si
+    Yahoo está caído, no colgamos cada petición con su timeout.
+    """
+    ahora = time.time()
+    if destino.exists() and ahora - destino.stat().st_mtime < FRESCURA_SEGUNDOS:
+        return True
+    return ahora - _ultimo_intento.get(destino.name, 0) < FRESCURA_SEGUNDOS
+
+
+def _refrescar(simbolo: str, intervalo: str) -> None:
+    """Descarga o completa el parquet base si ya no está al día.
+
+    Cubre también la primera descarga (parquet inexistente). Un fallo de red
+    no deja sin gráfico: si ya hay parquet se sirve tal cual —algo viejo es
+    mejor que un 502—; si no lo hay, cargar() lanza su FileNotFoundError.
+    """
+    destino = ruta_parquet(simbolo, intervalo)
+    if _al_dia(destino):
         return
-    fuente = simbolos.fuentes([simbolo]).get(simbolo, "binance")
-    if fuente == "yahoo":
-        datos_yahoo.actualizar(simbolo, "1h")
-    else:
-        datos.actualizar(simbolo, datos.desde_intradia(), "1h")
+    with _lock_de(destino.name):
+        if _al_dia(destino):  # otra petición pudo refrescarlo mientras esperábamos
+            return
+        _ultimo_intento[destino.name] = time.time()
+        fuente = simbolos.fuentes([simbolo]).get(simbolo, "binance")
+        try:
+            if fuente == "yahoo":
+                datos_yahoo.actualizar(simbolo, intervalo)
+            else:
+                desde = datos.DESDE if intervalo == "1d" else datos.desde_intradia()
+                datos.actualizar(simbolo, desde, intervalo)
+        # SystemExit: datos.actualizar es también CLI y avisa así de "sin datos"
+        except (ValueError, SystemExit, httpx.HTTPError, OSError):
+            pass
 
 
 def cargar(simbolo: str, intervalo: str) -> list[dict]:
@@ -32,8 +85,7 @@ def cargar(simbolo: str, intervalo: str) -> list[dict]:
         raise ValueError(f"Intervalo no soportado: {intervalo}")
 
     base = "1h" if intervalo in ("1h", "4h") else "1d"
-    if base == "1h":
-        _asegurar_1h(simbolo)
+    _refrescar(simbolo, base)
     destino = ruta_parquet(simbolo, base)
     if not destino.exists():
         raise FileNotFoundError(f"No hay datos de {simbolo}. Descárgalos con: make datos")
@@ -60,8 +112,10 @@ def resumen(simbolos: list[str]) -> list[dict]:
     últimas velas, OHLC y fecha). Si hay cotización en vivo, pisa esos campos
     y añade ampliado/ampliado_pct (pre/post-market) y resultados (fecha de
     próximos resultados); var_pct sin porcentaje de la fuente (Binance) se
-    calcula contra el cierre de la última vela en disco. `fecha` es siempre
-    la de la última vela guardada. Un símbolo sin parquet no es un error:
+    calcula contra el cierre de la última vela en disco. `fecha` es la del
+    DATO que se devuelve: la del quote si hay cotización viva (con el mercado
+    cerrado, la de su último cierre), si no la de la última vela guardada —
+    así nunca acompaña a un precio de otro momento. Un símbolo sin parquet no es un error:
     sale con null en lo que no haya (la lista de seguimiento puede contener
     símbolos aún no descargados).
     """
