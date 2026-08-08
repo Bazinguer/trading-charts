@@ -96,16 +96,18 @@ export const fibonacci: OverlayTemplate = {
     const finX = Math.max(coordinates[0].x, coordinates[1].x)
     const difY = coordinates[0].y - coordinates[1].y
     const difValor = valorInicio - valorFin
-    const yDe = (nivel: number) => coordinates[1].y + difY * nivel
-    // El precio de cada nivel se DERIVA de su altura preguntando al eje, en vez
-    // de interpolarse aparte: así la etiqueta no puede contradecir a la línea.
-    // En escala lineal da exactamente lo mismo que interpolar el precio (el
-    // píxel es afín al precio); en logarítmica es la única forma de que
-    // coincidan. Manda el eje: el fibo reparte el espacio VISIBLE, y en log eso
-    // es el recorrido porcentual. El fallback cubre el fibo sobre un panel sin
-    // eje propio y reproduce el cálculo anterior.
-    const precioDe = (nivel: number) =>
-      yAxis?.convertFromPixel(yDe(nivel)) ?? valorFin + difValor * nivel
+    // El nivel es una fracción del RANGO DE PRECIO, no del espacio de pantalla:
+    // estándar del sector y default de TradingView ("Fib levels based on log
+    // scale" viene desactivado). Así el 0.618 marca el MISMO precio en lineal y
+    // en log —el número que mira el resto del mercado, que es de donde un nivel
+    // saca su fuerza— y un fibo guardado no cambia de significado al cambiar de
+    // escala. El eje decide dónde cae en pantalla, de modo que la línea y su
+    // etiqueta jamás discrepan: en log los niveles salen comprimidos hacia
+    // arriba, exactamente como en TradingView. El fallback (idéntico en lineal)
+    // cubre el fibo sobre un panel sin eje propio.
+    const precioDe = (nivel: number) => valorFin + difValor * nivel
+    const yDe = (nivel: number) =>
+      yAxis?.convertToPixel(precioDe(nivel)) ?? coordinates[1].y + difY * nivel
 
     // Bandas entre niveles consecutivos, teñidas por el nivel superior del par.
     const bandas = visibles.slice(0, -1).map((nivel, i) => ({

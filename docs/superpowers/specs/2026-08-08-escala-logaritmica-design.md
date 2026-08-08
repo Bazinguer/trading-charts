@@ -41,20 +41,29 @@ Se evaluó y se descartó:
 - Duplica el mantenimiento del análisis, no la información.
 - Toca el esquema de `dibujos.db`, lo más delicado del proyecto.
 
-### 3. En el Fibonacci manda el eje
+### 3. Los niveles del Fibonacci son fracción del rango de PRECIO
 
-El overlay hace hoy dos interpolaciones en paralelo: la posición en píxeles
+El overlay hacía dos interpolaciones en paralelo: la posición en píxeles
 (`fibonacci.ts:99`) y la etiqueta en precio (`fibonacci.ts:134`). En lineal
-coinciden exactamente; en log se separan y la etiqueta contradiría a la línea.
+coinciden exactamente; en log se separan y la etiqueta contradice a la línea.
 
-Se unifica derivando el precio **de la posición**: el fibo divide el espacio
-visual en partes iguales y la etiqueta dice el precio real de esa altura. Una
-sola regla, válida en cualquier escala, sin casillas ni campos nuevos.
+Se unifica en una sola dirección: **el nivel se calcula en precio y el eje
+decide su altura** (`convertToPixel`). Línea y etiqueta no pueden discrepar en
+ninguna escala, y en log los niveles salen comprimidos hacia arriba.
 
-Consecuencia asumida: cambiar la escala de un símbolo mueve los niveles de sus
-fibos guardados. Es la intención — en log se mide el recorrido porcentual. La
-divergencia es <1% en tramos del 30% y del 13% en tramos del 200%: coinciden
-donde no importa y se separan justo donde se usa log.
+Se evaluó la alternativa (repartir el espacio visual y derivar el precio de la
+altura, es decir retroceso geométrico en log) y se descartó tras medirla sobre
+el análisis real del S&P, donde movía el 0.5 de 5.582,53 a 5.202,88 — un 7%:
+
+- Es el default de TradingView, que trae "Fib levels based on log scale"
+  DESACTIVADO, y el estándar del sector. Coincidir importa: un nivel de
+  Fibonacci saca su fuerza del consenso de quienes miran el mismo número.
+- Un fibo guardado conserva su significado aunque se cambie la escala, que es
+  el propósito de esta app.
+- No cuesta coherencia: ambas variantes sitúan la línea vía el eje, así que
+  ninguna es un apaño. La diferencia es solo qué SIGNIFICA el nivel.
+
+La casilla por dibujo de TradingView queda como añadido futuro, no ahora.
 
 ### 4. Solo el panel del precio
 
@@ -119,16 +128,18 @@ también RSI y MACD en logarítmico. Va comentado en el código.
 Más un `escalaRef` para que el arranque aplique la escala vigente, igual que
 `tipoRef` y `rejillaRef`.
 
-**Fibonacci** (`fibonacci.ts`) — la posición no cambia; el precio se deriva:
+**Fibonacci** (`fibonacci.ts`) — el precio manda y el eje lo sitúa:
 
 ```ts
-const precioDe = (nivel: number) =>
-  yAxis?.convertFromPixel(yDe(nivel)) ?? valorFin + difValor * nivel
+const precioDe = (nivel: number) => valorFin + difValor * nivel
+const yDe = (nivel: number) =>
+  yAxis?.convertToPixel(precioDe(nivel)) ?? coordinates[1].y + difY * nivel
 ```
 
 En lineal es matemáticamente idéntico a lo actual, así que **los fibos guardados
-deben mostrar los mismos números que hoy**. Un fibo sobre el panel del RSI
-recibe el `yAxis` de ese panel (lineal) y sale correcto sin rama especial.
+muestran los mismos números y en la misma posición que hoy**. Un fibo sobre el
+panel del RSI recibe el `yAxis` de ese panel (lineal) y sale correcto sin rama
+especial.
 
 **UI.** Botón `LOG` en el grupo de tipo/rejilla, con el patrón de la rejilla
 (`variant="default"` activo / `secondary` inactivo, `aria-pressed`, `title`).
@@ -137,13 +148,14 @@ palabra, y TradingView también usa la palabra. En móvil, al grupo inferior.
 
 ## Riesgos declarados
 
-1. **Espacio de coordenadas de `convertFromPixel`.** Se asume relativo al panel,
-   igual que las `coordinates` del overlay. No ejecutado aún. La prueba 1 lo
-   detecta de inmediato.
-2. **Redondeo en los extremos del fibo.** Si las coordenadas llegan redondeadas
-   a entero, el nivel 1 podría decir 199,97 en vez de 200,00. Se mide antes de
-   corregir; la solución (leer el valor del punto en los niveles 0 y 1) solo se
-   implementa si el problema existe.
+1. **Espacio de coordenadas del eje.** Se asume que `convertToPixel` devuelve
+   píxeles relativos al panel, igual que las `coordinates` del overlay. La
+   prueba 1 lo detecta de inmediato: en lineal el fibo debe quedar donde está
+   hoy.
+2. **Redondeo en los extremos del fibo.** RESUELTO por el propio diseño: el
+   nivel 0 evalúa a `valorFin` y el 1 a `valorInicio`, los valores exactos de
+   los anclajes. Con la variante descartada (derivar el precio del píxel) sí
+   aparecía un error sub-píxel medido de hasta 0,16 unidades.
 
 ## Fuera de alcance (YAGNI explícito)
 
@@ -162,7 +174,7 @@ log en paneles de indicadores · defensa para precios ≤ 0 · tocar KLineChart
 | 3 | Guardar → F5 | Persiste |
 | 4 | Abrir BTCUSDT | Sigue en lineal: la escala no se contagia |
 | 5 | Con RSI + MACD activos | Sus paneles siguen lineales |
-| 6 | Fibo en log | Etiqueta coincide con el eje; extremos en los anclajes |
+| 6 | Fibo en log | Mismos precios que en lineal; líneas comprimidas hacia arriba |
 | 7 | Símbolo con análisis antiguo | Abre en lineal, dibujos intactos |
 | 8 | Consola | 0 errores |
 

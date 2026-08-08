@@ -16,10 +16,14 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
   @klinecharts/pro y react-klinecharts-ui): rect, circle, triangle, measure.
   `fibonacciLine` SUSTITUYE al incorporado (mismo nombre, deliberado): acotado
   al ancho de sus dos puntos, niveles ocultables (extendData.niveles) y estilo
-  por dibujo. El precio de cada nivel se DERIVA de su altura preguntando al
-  eje (`convertFromPixel`), nunca se interpola aparte: así la etiqueta no
-  puede contradecir a la línea. En lineal da lo mismo que interpolar precios;
-  en log reparte el recorrido porcentual (0.5 = media geométrica). Sus NOMBRES son parte del contrato de persistencia: renombrarlos
+  por dibujo. Sus niveles son fracción del RANGO DE PRECIO (estándar del
+  sector y default de TradingView, que trae "Fib levels based on log scale"
+  desactivado): el 0.618 marca el mismo precio en lineal y en log, que es el
+  número que mira el resto del mercado y de donde un nivel saca su fuerza. La
+  ALTURA la decide el eje (`convertToPixel`), así que línea y etiqueta nunca
+  discrepan y en log los niveles salen comprimidos hacia arriba. No interpolar
+  precio y píxel por separado: en lineal coinciden y el fallo pasa inadvertido,
+  en log divergen. Sus NOMBRES son parte del contrato de persistencia: renombrarlos
   rompe dibujos guardados. El PANEL de cada dibujo también es contrato: se
   guarda como `paneId` (ausente = panel del precio; `panel_<INDICADOR>`, p. ej.
   `panel_RSI`, para dibujos sobre paneles — ver `paneDe()` en GraficoVelas).
