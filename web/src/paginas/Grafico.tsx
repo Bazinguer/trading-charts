@@ -9,7 +9,12 @@ import {
 } from "lucide-react"
 import { Link, useLocation, useParams } from "react-router-dom"
 
-import { GraficoVelas, type Intervalo, type TipoGrafico } from "@/components/GraficoVelas"
+import {
+  GraficoVelas,
+  type Escala,
+  type Intervalo,
+  type TipoGrafico,
+} from "@/components/GraficoVelas"
 import { Button } from "@/components/ui/button"
 import { api, type ResumenSimbolo } from "@/lib/api"
 import { claseSigno, porcentaje, precio } from "@/lib/formato"
@@ -29,6 +34,8 @@ const TIPOS: { valor: TipoGrafico; etiqueta: string; Icono: typeof ChartCandlest
 ]
 
 // Preferencias de visualización globales (no son análisis del símbolo → localStorage).
+// La ESCALA no está aquí a propósito: es parte del análisis y se guarda por
+// símbolo en la BD, junto a dibujos e indicadores (ver GraficoVelas).
 const CLAVE_TIPO = "tc-tipo-grafico"
 const CLAVE_REJILLA = "tc-rejilla"
 
@@ -86,6 +93,29 @@ function BotonesTipo({
   )
 }
 
+// Texto en vez de icono: ningún pictograma comunica "escala logarítmica" mejor
+// que la palabra, y es lo que usa TradingView.
+function BotonEscala({
+  escala,
+  alCambiar,
+}: {
+  escala: Escala
+  alCambiar: (e: Escala) => void
+}) {
+  const log = escala === "log"
+  return (
+    <Button
+      size="sm"
+      variant={log ? "default" : "secondary"}
+      title="Escala logarítmica"
+      aria-pressed={log}
+      onClick={() => alCambiar(log ? "lineal" : "log")}
+    >
+      LOG
+    </Button>
+  )
+}
+
 export function Grafico() {
   const { simbolo = "BTCUSDT" } = useParams()
   const { state } = useLocation()
@@ -95,6 +125,9 @@ export function Grafico() {
   )
   // Rejilla OCULTA por defecto: el lienzo limpio es la norma.
   const [rejilla, setRejilla] = useState(() => localStorage.getItem(CLAVE_REJILLA) === "1")
+  // Arranca en lineal y GraficoVelas la corrige con la guardada del símbolo en
+  // cuanto carga su análisis (los símbolos sin nada guardado se quedan así).
+  const [escala, setEscala] = useState<Escala>("lineal")
   const [indicadoresAbierto, setIndicadoresAbierto] = useState(false)
   const [resumen, setResumen] = useState<ResumenSimbolo | null>(null)
 
@@ -195,6 +228,7 @@ export function Grafico() {
             >
               <Grid3x3 />
             </Button>
+            <BotonEscala escala={escala} alCambiar={setEscala} />
           </div>
           <div className="h-5 w-px bg-border" />
           <Button size="sm" variant="secondary" onClick={() => setIndicadoresAbierto(true)}>
@@ -212,6 +246,8 @@ export function Grafico() {
         intervalo={intervalo}
         tipo={tipo}
         rejilla={rejilla}
+        escala={escala}
+        onEscala={setEscala}
         sinPaneles={CONSULTA}
         modoConsulta={CONSULTA}
         indicadoresAbierto={indicadoresAbierto}
@@ -223,6 +259,7 @@ export function Grafico() {
           <BotonesIntervalo intervalo={intervalo} alCambiar={setIntervalo} />
           <div className="h-5 w-px bg-border" />
           <BotonesTipo tipo={tipo} alCambiar={cambiarTipo} />
+          <BotonEscala escala={escala} alCambiar={setEscala} />
         </div>
       )}
     </div>

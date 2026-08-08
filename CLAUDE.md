@@ -16,7 +16,10 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
   @klinecharts/pro y react-klinecharts-ui): rect, circle, triangle, measure.
   `fibonacciLine` SUSTITUYE al incorporado (mismo nombre, deliberado): acotado
   al ancho de sus dos puntos, niveles ocultables (extendData.niveles) y estilo
-  por dibujo. Sus NOMBRES son parte del contrato de persistencia: renombrarlos
+  por dibujo. El precio de cada nivel se DERIVA de su altura preguntando al
+  eje (`convertFromPixel`), nunca se interpola aparte: así la etiqueta no
+  puede contradecir a la línea. En lineal da lo mismo que interpolar precios;
+  en log reparte el recorrido porcentual (0.5 = media geométrica). Sus NOMBRES son parte del contrato de persistencia: renombrarlos
   rompe dibujos guardados. El PANEL de cada dibujo también es contrato: se
   guarda como `paneId` (ausente = panel del precio; `panel_<INDICADOR>`, p. ej.
   `panel_RSI`, para dibujos sobre paneles — ver `paneDe()` en GraficoVelas).
@@ -26,6 +29,15 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
   el análisis hecho en diario se ve también en semanal. Los indicadores
   activos (nombre + calcParams + panel) se guardan igual: por símbolo, junto
   a los dibujos, con el mismo botón de guardar. Máximo uno por nombre.
+- Escala del eje de precios (`lineal` | `log`) POR SÍMBOLO, guardada con el
+  análisis y parte del contrato de persistencia: una recta en lineal ES una
+  curva en log, así que un dibujo solo se lee bien en la escala en que se
+  trazó, y el símbolo debe reabrirse en ella. TEXT y no un booleano para que
+  el eje `percentage` de la librería entre sin migrar. Solo cambia el panel
+  del PRECIO: `overrideYAxis` SIN `paneId: "candle_pane"` alcanza a los ejes
+  de TODOS los paneles, y el RSI (0-100) y el MACD (con negativos) no admiten
+  log. Descartado duplicar dibujos por escala: mismo motivo que no duplicarlos
+  por timeframe, y ni TradingView ni KLineChart lo hacen.
 - Datos multi-fuente: velas de Binance (`api/datos.py`, incremental) y de
   Yahoo (`api/datos_yahoo.py`, acciones/índices/ETFs/fondos; el diario con
   OHLC ajustado por splits+dividendos — patrón heredado de stocks_lab); todo

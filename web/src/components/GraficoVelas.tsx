@@ -42,6 +42,18 @@ type Velas = { timestamp: number; open: number; high: number; low: number; close
 
 export type Intervalo = "1h" | "4h" | "1d" | "1w" | "1M"
 export type TipoGrafico = "velas" | "linea"
+export type Escala = "lineal" | "log"
+
+// Escala del eje de precios. Solo cambia el panel del PRECIO: el RSI vive entre
+// 0 y 100 y el MACD tiene valores negativos, donde el logaritmo no significa
+// nada. El paneId NO es decorativo — sin él, overrideYAxis resuelve su filtro a
+// los ejes de TODOS los paneles y se llevaría por delante RSI y MACD.
+function aplicarEscala(chart: Chart, escala: Escala) {
+  chart.overrideYAxis({
+    paneId: "candle_pane",
+    name: escala === "log" ? "logarithm" : "normal",
+  })
+}
 
 // El período le dice a KLineChart cómo formatear fechas en crosshair/tooltip.
 const PERIODOS: Record<Intervalo, { span: number; type: "hour" | "day" | "month" }> = {
@@ -137,6 +149,8 @@ export function GraficoVelas({
   intervalo,
   tipo,
   rejilla,
+  escala,
+  onEscala,
   sinPaneles = false,
   modoConsulta = false,
   indicadoresAbierto,
@@ -146,6 +160,14 @@ export function GraficoVelas({
   intervalo: Intervalo
   tipo: TipoGrafico
   rejilla: boolean
+  /** Escala del eje de precios. A diferencia de tipo/rejilla no es una
+      preferencia del navegador: se guarda POR SÍMBOLO con el resto del
+      análisis, porque una recta en lineal ES una curva en log y el dibujo
+      solo se lee bien en la escala en que se trazó. El estado lo posee la
+      página (el botón vive en su barra) y este componente lo sincroniza
+      hacia arriba al cargar el análisis, igual que indicadoresAbierto. */
+  escala: Escala
+  onEscala: (escala: Escala) => void
   /** Ficha de consulta móvil: omite los indicadores con panel propio (RSI,
       MACD…), que no caben; los superpuestos al precio (MA…) sí se aplican.
       Cambiarlo exige remontar el componente (key en Grafico). */
@@ -196,10 +218,22 @@ export function GraficoVelas({
   temaRef.current = tema
   const rejillaRef = useRef(rejilla)
   rejillaRef.current = rejilla
+  const escalaRef = useRef(escala)
+  escalaRef.current = escala
+  // false hasta que se lee el análisis del símbolo: solo la PRIMERA carga toma
+  // la escala del servidor. Al recrear el chart por cambio de intervalo manda
+  // la vigente aunque no se haya guardado, mismo criterio que indicadoresRef.
+  const escalaCargadaRef = useRef(false)
 
   useEffect(() => {
     chartRef.current?.setStyles(estilosBase(tema, rejilla))
   }, [tema, rejilla])
+
+  // Efecto propio, NUNCA una dep del efecto de arranque: allí destruiría y
+  // recrearía el gráfico entero, perdiendo el zoom y rehaciendo los overlays.
+  useEffect(() => {
+    if (chartRef.current) aplicarEscala(chartRef.current, escala)
+  }, [escala])
 
   // null hasta la primera carga: al reiniciar el chart por cambio de intervalo
   // se re-aplican los indicadores vigentes (aunque no estén guardados), no los
@@ -272,11 +306,25 @@ export function GraficoVelas({
         chart.setBarSpace(Math.max(1, anchoLienzo / 150))
       }
 
-      const { overlays, indicadores: guardados } = await api<{
+      const {
+        overlays,
+        indicadores: guardados,
+        escala: escalaGuardada,
+      } = await api<{
         overlays: DibujoGuardado[]
         indicadores: Indicador[]
+        escala: Escala
       }>(`/api/dibujos/${encodeURIComponent(simbolo)}`)
       if (cancelado) return
+
+      // La escala, antes que dibujos e indicadores: aplicarla después obligaría
+      // a un reflow del gráfico ya pintado.
+      const escalaVigente = escalaCargadaRef.current
+        ? escalaRef.current
+        : (escalaGuardada ?? "lineal")
+      escalaCargadaRef.current = true
+      aplicarEscala(chart, escalaVigente)
+      if (escalaVigente !== escalaRef.current) onEscala(escalaVigente)
 
       // Indicadores ANTES que dibujos: un dibujo puede vivir en el panel de
       // un indicador (directriz sobre el RSI) y su panel debe existir ya.
@@ -563,7 +611,11 @@ export function GraficoVelas({
     // Los huérfanos (panel no presente en esta vista) se re-guardan tal cual.
     overlays.push(...huerfanosRef.current)
     try {
-      await apiPut(`/api/dibujos/${encodeURIComponent(simbolo)}`, { overlays, indicadores })
+      await apiPut(`/api/dibujos/${encodeURIComponent(simbolo)}`, {
+        overlays,
+        indicadores,
+        escala,
+      })
       const partes = [plural(overlays.length, "dibujo")]
       if (indicadores.length > 0) partes.push(plural(indicadores.length, "indicador"))
       setEstado(`Guardado: ${partes.join(" y ")}`)

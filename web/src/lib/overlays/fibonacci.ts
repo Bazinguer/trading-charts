@@ -97,6 +97,15 @@ export const fibonacci: OverlayTemplate = {
     const difY = coordinates[0].y - coordinates[1].y
     const difValor = valorInicio - valorFin
     const yDe = (nivel: number) => coordinates[1].y + difY * nivel
+    // El precio de cada nivel se DERIVA de su altura preguntando al eje, en vez
+    // de interpolarse aparte: así la etiqueta no puede contradecir a la línea.
+    // En escala lineal da exactamente lo mismo que interpolar el precio (el
+    // píxel es afín al precio); en logarítmica es la única forma de que
+    // coincidan. Manda el eje: el fibo reparte el espacio VISIBLE, y en log eso
+    // es el recorrido porcentual. El fallback cubre el fibo sobre un panel sin
+    // eje propio y reproduce el cálculo anterior.
+    const precioDe = (nivel: number) =>
+      yAxis?.convertFromPixel(yDe(nivel)) ?? valorFin + difValor * nivel
 
     // Bandas entre niveles consecutivos, teñidas por el nivel superior del par.
     const bandas = visibles.slice(0, -1).map((nivel, i) => ({
@@ -131,7 +140,7 @@ export const fibonacci: OverlayTemplate = {
       const precio = chart
         .getDecimalFold()
         .format(
-          chart.getThousandsSeparator().format((valorFin + difValor * nivel).toFixed(precision)),
+          chart.getThousandsSeparator().format(precioDe(nivel).toFixed(precision)),
         )
       return {
         type: "text",

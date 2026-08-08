@@ -6,6 +6,10 @@ indicadores activos ({name, calcParams, panel}), cada una en su columna JSON.
 Guardar reemplaza ambas listas enteras (el frontend siempre manda el estado
 completo del gráfico). Los dibujos se anclan a tiempo+precio, no a un
 timeframe: el análisis hecho en diario se ve también en semanal.
+
+La escala del eje de precios ('lineal' | 'log') se guarda igual, por símbolo:
+una recta en lineal ES una curva logarítmica en log, así que el análisis solo
+se lee bien si el símbolo vuelve a abrirse en la escala en que se dibujó.
 """
 
 import json
@@ -20,6 +24,7 @@ CREATE TABLE IF NOT EXISTS dibujos (
     simbolo TEXT PRIMARY KEY,
     overlays TEXT NOT NULL,
     indicadores TEXT NOT NULL DEFAULT '[]',
+    escala TEXT NOT NULL DEFAULT 'lineal',
     actualizado TEXT NOT NULL
 )
 """
@@ -29,21 +34,31 @@ def _conexion() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(exist_ok=True)
     conexion = sqlite3.connect(DB_PATH)
     conexion.execute(_ESQUEMA)
-    # Migración aditiva para BD anteriores a los indicadores; no toca las filas.
+    # Migraciones aditivas para BD anteriores; no tocan las filas existentes,
+    # que heredan el DEFAULT y siguen abriéndose exactamente igual que antes.
     columnas = {fila[1] for fila in conexion.execute("PRAGMA table_info(dibujos)")}
     if "indicadores" not in columnas:
         conexion.execute("ALTER TABLE dibujos ADD COLUMN indicadores TEXT NOT NULL DEFAULT '[]'")
+    # Escala del eje de precios. TEXT y no un booleano es_log a propósito:
+    # KLineChart trae un tercer eje de serie (percentage) y así entraría como
+    # un valor más, sin migrar la BD otra vez.
+    if "escala" not in columnas:
+        conexion.execute("ALTER TABLE dibujos ADD COLUMN escala TEXT NOT NULL DEFAULT 'lineal'")
     return conexion
 
 
 def obtener(simbolo: str) -> dict:
     with _conexion() as conexion:
         fila = conexion.execute(
-            "SELECT overlays, indicadores FROM dibujos WHERE simbolo = ?", (simbolo,)
+            "SELECT overlays, indicadores, escala FROM dibujos WHERE simbolo = ?", (simbolo,)
         ).fetchone()
     if not fila:
-        return {"overlays": [], "indicadores": []}
-    return {"overlays": json.loads(fila[0]), "indicadores": json.loads(fila[1])}
+        return {"overlays": [], "indicadores": [], "escala": "lineal"}
+    return {
+        "overlays": json.loads(fila[0]),
+        "indicadores": json.loads(fila[1]),
+        "escala": fila[2],
+    }
 
 
 def analisis() -> list[dict]:
@@ -69,13 +84,16 @@ def analisis() -> list[dict]:
     return resultado
 
 
-def guardar(simbolo: str, overlays: list[dict], indicadores: list[dict]) -> None:
+def guardar(
+    simbolo: str, overlays: list[dict], indicadores: list[dict], escala: str = "lineal"
+) -> None:
     ahora = datetime.now(UTC).isoformat(timespec="seconds")
     with _conexion() as conexion:
         conexion.execute(
-            "INSERT INTO dibujos (simbolo, overlays, indicadores, actualizado) "
-            "VALUES (?, ?, ?, ?) "
+            "INSERT INTO dibujos (simbolo, overlays, indicadores, escala, actualizado) "
+            "VALUES (?, ?, ?, ?, ?) "
             "ON CONFLICT(simbolo) DO UPDATE SET overlays = excluded.overlays, "
-            "indicadores = excluded.indicadores, actualizado = excluded.actualizado",
-            (simbolo, json.dumps(overlays), json.dumps(indicadores), ahora),
+            "indicadores = excluded.indicadores, escala = excluded.escala, "
+            "actualizado = excluded.actualizado",
+            (simbolo, json.dumps(overlays), json.dumps(indicadores), escala, ahora),
         )

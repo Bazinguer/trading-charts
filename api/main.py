@@ -35,6 +35,9 @@ protegido = APIRouter(prefix="/api", dependencies=[Depends(sesion.sesion_requeri
 class DibujosEntrada(BaseModel):
     overlays: list[dict]
     indicadores: list[dict] = []
+    # Con default: un cliente que no mande el campo guarda en lineal, como
+    # siempre. Literal en vez de str para que no entre basura en la BD.
+    escala: Literal["lineal", "log"] = "lineal"
 
 
 class ListaEntrada(BaseModel):
@@ -113,7 +116,7 @@ def obtener_dibujos(simbolo: str) -> dict:
 
 @protegido.put("/dibujos/{simbolo}")
 def guardar_dibujos(simbolo: str, entrada: DibujosEntrada) -> dict:
-    dibujos.guardar(simbolo, entrada.overlays, entrada.indicadores)
+    dibujos.guardar(simbolo, entrada.overlays, entrada.indicadores, entrada.escala)
     return {"dibujos": len(entrada.overlays), "indicadores": len(entrada.indicadores)}
 
 
