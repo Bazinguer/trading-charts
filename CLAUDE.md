@@ -121,6 +121,13 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
 - Backup/restore de dibujos.db desde la máquina local:
   `make -f Makefile.dev backup-prd` / `restore-prd` (doctrina anime-log: lo
   que toca PRD nunca vive en el Makefile normal).
+- Las migraciones de `dibujos.db` son PEREZOSAS: viven en `_conexion()` y solo
+  corren en la primera conexión a la BD de dibujos, no al arrancar. El
+  healthcheck (`/api/salud`) no toca la BD, así que un contenedor recién
+  desplegado puede estar `healthy` un buen rato con el esquema viejo. Verificar
+  PRD justo tras un deploy y ver la columna nueva ausente NO es un fallo: basta
+  con abrir un gráfico (o llamar a `dibujos.analisis()` dentro del contenedor)
+  para dispararla. Son idempotentes.
 
 ## Comandos
 
