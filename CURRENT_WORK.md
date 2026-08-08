@@ -5,116 +5,146 @@
 **PRODUCCIÓN VIVA**: charts.bazinguer.es está desplegado y verificado E2E.
 Fondos UCITS resueltos SOLO con Yahoo (Morningstar descartado por
 licencia/complejidad). La app hace todo lo pedido: gráfico con intervalos
-1H/4H/1D/1S/1M, indicadores (con ojo de mostrar/ocultar en su leyenda) y
-dibujos por símbolo persistentes (texto seleccionable/arrastrable, fieles a
-su PANEL, con ojo GLOBAL para ocultar/mostrar todos de golpe sin borrarlos),
-barra de dibujo completa, listas y símbolos reordenables arrastrando
-filas/tabs, pestaña activa de Inicio persistente entre navegaciones/F5,
-adaptación móvil/tablet, velas que se refrescan solas al abrir el gráfico
-(refresco perezoso, sin scheduler), y ahora **filas de tabla abribles en
-pestaña nueva** (clic secundario/central/Ctrl+clic) sin romper el arrastre
-para reordenar. El buscador de Binance cubre pares USDT y USDC. Once
-redeploys reales en PRD sin incidencias. El usuario ya usa la app en real
-(listas y símbolos propios, análisis guardados, intradía 1h, desde PC y
-móvil). Sin pendientes bloqueantes; un fleco cosmético opcional (ver Notas
+1H/4H/1D/1S/1M, escala del eje de precios **lineal o logarítmica por
+símbolo** (persistida en BD junto al análisis), indicadores (con ojo de
+mostrar/ocultar en su leyenda) y dibujos por símbolo persistentes (texto
+seleccionable/arrastrable, Fibonacci con niveles fracción del rango de
+precio como TradingView, fieles a su PANEL, con ojo GLOBAL para
+ocultar/mostrar todos de golpe sin borrarlos), barra de dibujo completa,
+listas y símbolos reordenables arrastrando filas/tabs, pestaña activa de
+Inicio persistente entre navegaciones/F5, adaptación móvil/tablet, velas
+que se refrescan solas al abrir el gráfico (refresco perezoso, sin
+scheduler), y filas de tabla abribles en pestaña nueva (clic
+secundario/central/Ctrl+clic) sin romper el arrastre para reordenar. El
+buscador de Binance cubre pares USDT y USDC. Doce redeploys reales en PRD
+sin incidencias. El usuario ya usa la app en real (listas y símbolos
+propios, análisis guardados, intradía 1h, desde PC y móvil). Sin
+pendientes bloqueantes; un fleco cosmético opcional (ver Notas
 Importantes).
 
 ## 📍 Última Sesión Completada
 
-### Fecha: 2026-08-07 — "abrir el gráfico de una fila en pestaña nueva"
+### Fecha: 2026-08-08 — "escala logarítmica del eje de precios"
 
 ### Contexto de la Sesión:
 
-El usuario pidió poder abrir las filas de la tabla en otra pestaña con clic
-secundario. Diagnóstico: las filas de Inicio y Gráficos navegaban con un
-`onClick` de JS sobre el `<tr>`, así que el navegador no sabía que había un
-destino — sin menú de "Abrir en pestaña nueva", sin efecto en clic central,
-y Ctrl+clic navegando en la misma pestaña. La ruta real (`/grafico/:simbolo`)
-ya existía con `BrowserRouter`; faltaba declararla en el DOM.
+El usuario pidió escala logarítmica para el eje de precios: en lineal la
+distancia vertical mide euros, no rentabilidad, y una serie de crecimiento
+compuesto (S&P) parece insostenible al final y plana al principio.
 
 ### Trabajo Completado:
 
-- ✅ **Enlaces reales en las filas** (`b94314f`): la celda del símbolo (y el
-  botón ↗ de Inicio) pasan a ser `<Link>` de react-router-dom — un `<a href>`
-  real que solo se aparta ante Ctrl/Cmd/Shift+clic y botón central. El resto
-  de la fila conserva su `onClick` de conveniencia. Encapsulado en
-  `<EnlaceGrafico>` (`Inicio.tsx`); `Graficos.tsx` usa un `<Link>` directo
-  (esa tabla no tiene arrastre). `FilaMovil` NO se tocó (sin clic secundario
-  en un dedo).
-- ✅ **Dos trampas no obvias, resueltas** (comentadas en el propio
-  `Inicio.tsx` y recogidas abajo en Notas Importantes):
-  `draggable={false}` en el ancla es OBLIGATORIO (un `<a>` es arrastrable de
-  nativo y arrastraría su URL en vez de disparar el `dragstart` de la fila,
-  rompiendo el reordenado justo por el punto más natural para agarrarla);
-  `stopPropagation` en su `onClick` es OBLIGATORIO (el `onClick` del
-  `<TableRow>` sigue vivo y burbujea; sin esto un Ctrl+clic abriría pestaña
-  Y ADEMÁS navegaría en la actual).
-- ✅ **Asumido a propósito**: en pestaña nueva se pierde el `state` del
-  router, así que el enlace de volver del gráfico cae en su destino por
-  defecto (`/graficos`) en vez de «Inicio» — codificar el origen en la URL
-  se descartó por YAGNI (caso marginal).
-- ✅ Verificación: `make lint`/`make build` limpios; Playwright contra dev:
-  clic central y Ctrl+clic abren pestaña sin navegar la actual, clic normal
-  genera una sola entrada de historial, arrastre agarrando por el símbolo
-  reordenó y restauró BTCUSDC correctamente, enlace de volver dice «Inicio»,
-  0 errores de consola (probado también en Gráficos). Verificado además el
-  BUNDLE DE PRODUCCIÓN: la API local sirve `web/dist` si existe, así que
-  `:8010` sirvió el mismo `index-fDEJ4jxX.js` que PRD.
-- ✅ **Undécimo redeploy real a PRD, verificado**: backup previo
-  (`backups/dibujos_prd_20260807_224631.db`, 132K, íntegro, 21 símbolos con
-  dibujos/6 listas/40 símbolos); rama `feat/enlaces-pestana-nueva` mergeada
-  fast-forward a main y BORRADA (local y remota) a petición del usuario —
-  a diferencia de sesiones anteriores, que las conservaban; imagen GHCR
-  `sha256:28b660470a2d1681…` (tags `b94314fa…` + `latest`, mismo digest);
-  contenedor `Up (healthy)`, 0 reinicios, `RepoDigest` coincide, bundle
-  servido idéntico byte a byte al build local (`sha256 feb335d6…`), logs
-  limpios, datos intactos (dibujos.db 132K íntegra, 21/6/40, 53 parquets).
+- ✅ **Spec de diseño** (`30e3626`,
+  `docs/superpowers/specs/2026-08-08-escala-logaritmica-design.md`) antes de
+  tocar código, con las decisiones de abajo.
+- ✅ **Escala lineal/log por símbolo, guardada en BD** (`5c86dce`): columna
+  nueva `escala TEXT NOT NULL DEFAULT 'lineal'` en `dibujos.db` (migración
+  aditiva, patrón de `indicadores`), TEXT y no booleano para que el eje
+  `percentage` de KLineChart entre sin volver a migrar el día que haga
+  falta. Se descartó `localStorage` a propósito: una recta en lineal ES una
+  curva en log, así que el símbolo debe reabrirse en la escala en que se
+  dibujó. `overrideYAxis` SIN `paneId: "candle_pane"` para no afectar a
+  RSI/MACD (verificado en `index.esm.js:15309` que sin filtrar alcanza a
+  TODOS los paneles). Botón `LOG` en el grupo de tipo/rejilla (PC) y en la
+  barra inferior (móvil).
+- ✅ **Descartado a fondo, no implementado**: duplicar los dibujos por
+  escala (idea propuesta por el usuario). Ni TradingView ni KLineChart lo
+  hacen así (en TV es un apaño manual vía Object Tree), contradice "dibujos
+  por símbolo, no por símbolo+timeframe", y duplicaría el mantenimiento del
+  AT.
+- ✅ **Fix de Fibonacci tras medir sobre datos reales** (`a3c0015`): los
+  niveles son fracción del RANGO DE PRECIO y el eje decide su altura en
+  píxeles (`convertToPixel`), no un retroceso geométrico en el espacio log.
+  Es el default de TradingView ("Fib levels based on log scale" viene
+  desactivado) y el estándar del sector. Se implementó primero la variante
+  contraria y se revirtió al medir sobre el S&P real del usuario: movía el
+  nivel 0.5 de 5.582 a 5.203 (7%) — un Fibonacci saca su fuerza del consenso
+  de quienes miran el mismo número.
+- ✅ **Barrido de deuda pendiente**: al arrancar la sesión se eliminaron las
+  8 ramas locales obsoletas de sesiones anteriores (`feat/base-app`,
+  `feat/grafico`, `feat/ojo-indicadores`, `feat/pestana-activa-y-ojo-dibujos`,
+  `feat/refresco-velas`, `feat/reordenar-simbolos`, `feat/responsive-movil`,
+  `fix/mover-dibujos-texto`); ninguna existía ya en remoto.
+- ✅ Verificación: `make lint`/`make build` limpios. Migración probada sobre
+  COPIA de la BD real antes de tocar nada: datos intactos, filas antiguas
+  heredan `'lineal'`, round-trip ok, BD nueva nace con la columna. Playwright
+  contra dev: mismos precios de Fibonacci en log y lineal (6.058,29 /
+  5.582,27 / 5.106,26 sobre el S&P), líneas equiespaciadas en lineal (30px)
+  y comprimidas en log (17px/23px); escala persistente tras F5 y no
+  contagiada entre símbolos; MACD/RSI/volumen intactos en lineal; móvil ok;
+  0 errores de consola. Confirmado además que los anclajes de un dibujo NO
+  se mueven al cambiar de escala (es proyección, no bug — pregunta que hizo
+  el propio usuario al probar).
+- ✅ **Duodécimo redeploy real a PRD, verificado**: backup previo
+  (`backups/dibujos_prd_20260808_185910.db`, 132K, íntegro, 21 símbolos/136
+  dibujos/54 indicadores/6 listas/40 símbolos); rama `feat/escala-logaritmica`
+  mergeada fast-forward a main; imagen GHCR
+  `sha256:6f0b6aa4b7e3d30a2c13d74d1100d641d76bbcedd6e8a5000c2861743402ca91`
+  (tags `latest` + `a3c00156cc7b…`); el usuario pulsó Deploy en Dokploy
+  (norma fija); contenedor `Up (healthy)`, 0 reinicios, `RepoDigest`
+  coincide, bundle `index-BOxrhiLJ.js` idéntico byte a byte al build local
+  (`sha256 b948949d…`), logs limpios, y tras la migración perezosa 136
+  dibujos/54 indicadores/6 listas/40 símbolos byte a byte idénticos al
+  backup, las 21 filas en `'lineal'`.
 
-### INCIDENCIA OPERATIVA (ver también Notas Importantes):
+### HALLAZGO OPERATIVO (ver también Notas Importantes):
 
-Ya NO se puede disparar el workflow "Deploy" por API desde esta máquina: el
-token de `gh` devuelve **HTTP 403 "Must have admin rights to Repository"**
-en el dispatch de `Bazinguer/trading-charts` (la lectura de runs y el push a
-main sí funcionan). En sesiones anteriores el dispatch funcionaba; ahora no.
-El usuario tuvo que lanzarlo a mano desde Actions → Deploy → Run workflow.
+Las migraciones de `dibujos.db` son PEREZOSAS: viven en `_conexion()` y solo
+corren en la PRIMERA conexión a la BD de dibujos, no al arrancar el
+contenedor. El healthcheck no toca la BD, así que un contenedor recién
+desplegado puede estar `healthy` con el esquema viejo — verificar PRD justo
+tras el deploy y no ver la columna nueva NO es un fallo, ya documentado en
+`CLAUDE.md` (`931953e`).
+
+### Nota de contexto:
+
+El dispatch del workflow "Deploy" por API SÍ funcionó esta vez (204, run
+`31268325480` success): el 403 de la sesión anterior era `gh workflow run`,
+que nunca ha funcionado en este repo; la vía buena es el PAT embebido en el
+remote contra la API de dispatches (ya documentada en Notas Importantes).
 
 ### Estado al Finalizar:
 
-- `main` en `b94314f` (+ este cierre); local, `origin/main` y PRD
-  sincronizados. En remoto solo queda la rama `main` (las `feat/*` fusionadas
-  de sesiones anteriores siguen solo en local, ver pendiente abajo).
-- Servidores dev apagados. Lista Cripto de dev restaurada a su orden
-  original [BTCUSDC, ETHUSDT, BTCUSDT] tras la prueba de arrastre.
+- `main` en `931953e` (+ este cierre); local, `origin/main` y PRD
+  sincronizados. Rama `feat/escala-logaritmica` mergeada pero NO borrada
+  (fleco menor, ver Próximos Pasos).
+- Servidores dev apagados. BD de dev restaurada de su backup tras las
+  pruebas (GOOG con sus 2 dibujos originales). Capturas de prueba fuera del
+  repo (scratchpad).
 
 ### Próximos Pasos Sugeridos:
 
-1. **Ofrecido y no resuelto**: barrer 8 ramas locales antiguas ya fusionadas
-   y sin gemela en remoto (`feat/base-app`, `feat/grafico`,
-   `feat/ojo-indicadores`, `feat/pestana-activa-y-ojo-dibujos`,
-   `feat/refresco-velas`, `feat/reordenar-simbolos`, `feat/responsive-movil`,
-   `fix/mover-dibujos-texto`). El usuario no se pronunció — tarea menor.
-2. Investigar/resolver los permisos de `gh` para poder volver a disparar
-   "Deploy" por API (o asumir que el lanzamiento manual es lo normal ahora).
+1. Fleco menor: borrar la rama local `feat/escala-logaritmica` ya fusionada
+   (el usuario suele pedirlo tras el merge).
+2. Posible añadido futuro, hoy YAGNI: casilla "fib levels based on log
+   scale" por dibujo, como TradingView, si algún día echa de menos el
+   retroceso geométrico.
 3. Vista dual diario+disparo en PC sigue en backlog de memoria; requiere
    decidir el modelo de guardado ANTES de tocar código.
 4. Fleco cosmético del logout sigue pendiente (no bloqueante).
 
 ---
 🔴 [FIN DE SESIÓN - BREAKPOINT]
-📅 Fecha: 2026-08-07
-🎯 Estado: Filas de tabla abribles en pestaña nueva (clic secundario/central/
-    Ctrl+clic) sin romper el arrastre para reordenar, desplegado y verificado
-    E2E; undécimo redeploy real a PRD con backup previo. Rama de feature
-    borrada tras el merge (a petición del usuario). El dispatch del workflow
-    "Deploy" por API dejó de funcionar (403 de permisos) — lanzamiento manual
-    por ahora. Sin pendientes bloqueantes.
-⏭️  Retomar: sin acción predefinida — esperar feedback del usuario, o barrer
-    las 8 ramas locales obsoletas si se confirma, o abordar la vista dual
+📅 Fecha: 2026-08-08
+🎯 Estado: Escala logarítmica del eje de precios, por símbolo y persistida en
+    BD (no localStorage), con Fibonacci corregido a fracción del rango de
+    precio (estándar TradingView) tras medir sobre datos reales; desplegado
+    y verificado E2E. Duodécimo redeploy real a PRD con backup previo.
+    Documentado que las migraciones de dibujos.db son perezosas (primera
+    conexión, no arranque del contenedor). Sin pendientes bloqueantes.
+⏭️  Retomar: sin acción predefinida — esperar feedback del usuario, borrar
+    la rama `feat/escala-logaritmica` ya fusionada, o abordar la vista dual
     (diario + intervalo de disparo) si toca sesión dedicada.
 ---
 
 ## 📝 Sesiones Anteriores (Resumen)
 
+- 2026-08-07: filas de tabla abribles en pestaña nueva vía `<Link>` real de
+  react-router (`b94314f`, `draggable={false}` + `stopPropagation`
+  obligatorios para no romper el arrastre de reordenado); undécimo redeploy
+  a PRD verificado, rama de feature borrada tras merge a petición del
+  usuario; detectado el 403 de `gh workflow run` (nunca funcionó en este
+  repo, ver Notas Importantes).
 - 2026-08-07 (sesión anterior): refresco perezoso de velas (`2e0bd28`, 15
   min sobre mtime, sin scheduler, filtra pseudo-velas de Yahoo) y fecha de
   lista consistente con el dato mostrado (`ebf7ca5`); décimo redeploy a PRD
@@ -184,7 +214,20 @@ por símbolo, una fuente de verdad por familia de intervalos, auth de usuario
 - El % var. live compara contra el último cierre COMPLETADO (no la vela del
   día en curso) — no "arreglar" eso sin entender por qué está así.
 - El diseño base del fibo y las preferencias de visualización viven en
-  localStorage del navegador (tc-fibo-base, tc-tipo-grafico, tc-rejilla).
+  localStorage del navegador (tc-fibo-base, tc-tipo-grafico, tc-rejilla). La
+  ESCALA del eje (lineal/log) es la excepción deliberada: va en `dibujos.db`
+  por símbolo, no en localStorage, porque una recta en lineal ES una curva
+  en log y el símbolo debe reabrirse en la escala en que se dibujó.
+- Los niveles de Fibonacci son fracción del RANGO DE PRECIO (el eje decide
+  su altura en píxeles vía `convertToPixel`), no un retroceso geométrico en
+  el espacio log — es el default de TradingView y el estándar del sector;
+  no "corregirlo" al revés sin releer
+  `docs/superpowers/specs/2026-08-08-escala-logaritmica-design.md`.
+- Las migraciones de `dibujos.db` son PEREZOSAS (`_conexion()` en
+  `api/dibujos.py`): corren en la primera conexión a la BD, no al arrancar
+  el contenedor. El healthcheck no toca la BD, así que un contenedor recién
+  desplegado puede estar `healthy` con el esquema viejo todavía — no ver la
+  columna nueva justo tras el deploy no es un fallo.
 - La línea horizontal de la "Etiqueta" (simpleTag) tiene hit-area fina
   (~2px), como cualquier línea de la librería: si un día "no se deja
   seleccionar", es precisión de click, no regresión.
