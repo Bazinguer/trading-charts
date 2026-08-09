@@ -104,9 +104,11 @@ Proyecto personal; filosofía KISS/YAGNI estricta.
   `components/PageHeader.tsx` (backLink estilo iOS),
   `components/GraficoVelas.tsx` (gráfico + barra vertical de dibujo),
   `components/ui/` (shadcn), `lib/` (api, formato, utils).
-- `stocks_lab/` — laboratorio heredado de trading-bot (origen del patrón de
-  datos Yahoo). Los `exp_*` dependen de `crypto_lab` (trading-bot) y aquí NO
-  corren: son referencia + registro de resultados.
+> `stocks_lab/` vivía aquí y se movió a **trading-bot** (ago-2026): sus `exp_*`
+> importan de `crypto_lab`, así que en este repo no corrían y la dependencia
+> cruzada entre proyectos no tenía sentido. Este repo es solo visualización;
+> los laboratorios (cripto y bolsa) están juntos en trading-bot. El patrón de
+> descarga de Yahoo de `api/datos_yahoo.py` sigue siendo el heredado de allí.
 
 ## Despliegue (charts.bazinguer.es)
 
